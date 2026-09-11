@@ -1,186 +1,388 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BabySitter App - Login e Prenotazioni</title>
-    <style>
-        :root { --primary: #4A90E2; --success: #2ECC71; --bg: #F4F7F9; --card: #FFFFFF; --text: #2C3E50; }
-        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .card { background: var(--card); padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: 600; }
-        input, select, button { width: 100%; padding: 10px; border: 1px solid #CBD5E1; border-radius: 6px; box-sizing: border-box; }
-        button.btn { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        button.btn-logout { background: #E74C3C; width: auto; padding: 6px 12px; float: right; }
-        .hidden { display: none; }
-        .slot-card { border: 1px solid #E2E8F0; border-left: 5px solid var(--primary); padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #FAFAFA; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BabyApp - Servizio Babysitter</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+    .container { max-width: 800px; margin: 0 auto; }
+    .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    h1, h2 { color: #2c3e50; margin-top: 0; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: bold; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
+    button { background-color: #3498db; color: white; border: none; padding: 12px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; transition: background 0.3s; }
+    button:hover { background-color: #2980b9; }
+    .btn-secondary { background-color: #e74c3c; margin-top: 10px; }
+    .btn-secondary:hover { background-color: #c0392b; }
+    .link-action { font-size: 13px; color: #3498db; text-decoration: none; cursor: pointer; display: inline-block; margin-top: 8px; }
+    .link-action:hover { text-decoration: underline; }
+    .slot-item { border-left: 4px solid #3498db; background: #f8f9fa; padding: 15px; margin-bottom: 10px; border-radius: 0 5px 5px 0; display: flex; justify-content: space-between; align-items: center; }
+    .hidden { display: none; }
+  </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>👶 BabySitter Service Platform</h1>
 
-    <!-- SECTION: AUTHENTICATION -->
-    <div id="auth-section" class="card">
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <button class="btn" onclick="toggleAuthMode('login')">Accedi</button>
-            <button class="btn" style="background:#64748B" onclick="toggleAuthMode('register')">Registrati</button>
+  <!-- ==================================================================== -->
+  <!-- SEZIONE 1: AUTENTICAZIONE (LOGIN / REGISTRAZIONE)                  -->
+  <!-- ==================================================================== -->
+  <div id="authSection" class="card">
+    
+    <!-- FORM LOGIN -->
+    <div id="loginBox">
+      <h2>Accedi a BabyApp</h2>
+      <form id="loginForm">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="loginEmail" required>
         </div>
-
-        <!-- Form Login -->
-        <form id="loginForm">
-            <h3>Accedi al tuo account</h3>
-            <div class="form-group"><label>Email</label><input type="email" id="loginEmail" required></div>
-            <div class="form-group"><label>Password</label><input type="password" id="loginPassword" required></div>
-            <button type="submit" class="btn">Accedi</button>
-        </form>
-
-        <!-- Form Registrazione -->
-        <form id="registerForm" class="hidden">
-            <h3>Crea un nuovo account</h3>
-            <div class="form-group"><label>Nome Completo</label><input type="text" id="regName" required></div>
-            <div class="form-group"><label>Email</label><input type="email" id="regEmail" required></div>
-            <div class="form-group"><label>Password</label><input type="password" id="regPassword" required></div>
-            <div class="form-group"><label>Telefono</label><input type="tel" id="regPhone" placeholder="+393331234567" required></div>
-            <div class="form-group">
-                <label>Ruolo Utente</label>
-                <select id="regRole">
-                    <option value="family">Famiglia (Cerca Babysitter)</option>
-                    <option value="sitter">Babysitter (Offri Servizio)</option>
-                </select>
-            </div>
-            <button type="submit" class="btn" style="background:var(--success)">Registrati</button>
-        </form>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="loginPassword" required>
+        </div>
+        <button type="submit">Accedi</button>
+      </form>
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+        <span class="link-action" onclick="richiediResetPassword()">Password dimenticata?</span>
+        <span class="link-action" onclick="toggleAuthMode('register')">Non hai un account? Registrati</span>
+      </div>
     </div>
 
-    <!-- SECTION: MAIN DASHBOARD (Visibile solo se loggati) -->
-    <div id="dashboard-section" class="hidden">
-        <button class="btn btn-logout" onclick="logout()">Logout</button>
-        <h2>Benvenuto, <span id="userName"></span> (<span id="userRole"></span>)</h2>
-
-        <!-- Vista Babysitter -->
-        <div id="sitter-view" class="card hidden">
-            <h3>Pubblica Nuova Disponibilità</h3>
-            <form id="addSlotForm">
-                <div class="form-group"><label>Data</label><input type="date" id="slotDate" required></div>
-                <div class="form-group">
-                    <label>Fascia Oraria</label>
-                    <select id="timeSlot">
-                        <option value="Mattina (08:00 - 13:00)">Mattina (08:00 - 13:00)</option>
-                        <option value="Pomeriggio (13:00 - 18:00)">Pomeriggio (13:00 - 18:00)</option>
-                        <option value="Sera (18:00 - 23:00)">Sera (18:00 - 23:00)</option>
-                    </select>
-                </div>
-                <div class="form-group"><label>Tariffa Oraria (€)</label><input type="number" step="0.5" id="hourlyRate" value="12.00" required></div>
-                <button type="submit" class="btn">Salva Disponibilità</button>
-            </form>
+    <!-- FORM REGISTRAZIONE -->
+    <div id="registerBox" class="hidden">
+      <h2>Crea un nuovo Account</h2>
+      <form id="registerForm">
+        <div class="form-group">
+          <label>Nome Completo</label>
+          <input type="text" id="regName" required>
         </div>
-
-        <!-- Vista Famiglia -->
-        <div id="family-view" class="card hidden">
-            <h3>Disponibilità Babysitter</h3>
-            <div id="slotsContainer">Caricamento...</div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="regEmail" required>
         </div>
+        <div class="form-group">
+          <label>Telefono (es. +393331234567)</label>
+          <input type="tel" id="regPhone" required placeholder="+393331234567">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="regPassword" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label>Ruolo</label>
+          <select id="regRole">
+            <option value="family">Famiglia (Cerca Babysitter)</option>
+            <option value="sitter">Babysitter (Offri Disponibilità)</option>
+          </select>
+        </div>
+        <button type="submit">Registrati</button>
+      </form>
+      <div style="text-align: center; margin-top: 10px;">
+        <span class="link-action" onclick="toggleAuthMode('login')">Hai già un account? Accedi</span>
+      </div>
     </div>
+
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- SEZIONE 2: RESET PASSWORD (Visibile solo dopo click da Email)         -->
+  <!-- ==================================================================== -->
+  <div id="resetPasswordSection" class="card hidden">
+    <h2>Imposta Nuova Password</h2>
+    <p>Inserisci la nuova password per completare il ripristino.</p>
+    <form id="updatePasswordForm">
+      <div class="form-group">
+        <label>Nuova Password</label>
+        <input type="password" id="newPassword" required minlength="6">
+      </div>
+      <button type="submit">Aggiorna Password</button>
+    </form>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- SEZIONE 3: DASHBOARD APPLICAZIONE (Dopo il Login)                    -->
+  <!-- ==================================================================== -->
+  <div id="appSection" class="hidden">
+    
+    <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        Benvenuto/a, <strong id="userName">Utente</strong> (<span id="userRole">ruolo</span>)
+      </div>
+      <button onclick="logout()" class="btn-secondary" style="width: auto; padding: 6px 15px;">Logout</button>
+    </div>
+
+    <!-- SEZIONE BABYSITTER: Aggiungi Disponibilità -->
+    <div id="sitterSection" class="card hidden">
+      <h2>Offri una Disponibilità</h2>
+      <form id="addSlotForm">
+        <div class="form-group">
+          <label>Data</label>
+          <input type="date" id="slotDate" required>
+        </div>
+        <div class="form-group">
+          <label>Fascia Oraria (es. 15:00 - 19:00)</label>
+          <input type="text" id="slotTime" placeholder="es. 15:00 - 19:00" required>
+        </div>
+        <div class="form-group">
+          <label>Tariffa Oraria (€)</label>
+          <input type="number" id="slotRate" min="5" step="0.5" required>
+        </div>
+        <button type="submit">Pubblica Disponibilità</button>
+      </form>
+    </div>
+
+    <!-- SEZIONE FAMIGLIA: Visualizza Disponibilità e Prenota -->
+    <div id="familySection" class="card hidden">
+      <h2>Disponibilità Babysitter Aperte</h2>
+      <div id="slotsContainer">Caricamento in corso...</div>
+    </div>
+
+  </div>
+
 </div>
 
 <script>
-    let currentUser = JSON.parse(localStorage.getItem('user')) || null;
+  let currentUser = null;
+  let userToken = null;
 
-    window.onload = () => {
-        if (currentUser) showDashboard();
-    };
+  // Controlla se la pagina è stata aperta da un link di reset password (URL contiene #access_token=)
+  window.addEventListener('DOMContentLoaded', () => {
+    if (window.location.hash && window.location.hash.includes('access_token')) {
+      document.getElementById('authSection').classList.add('hidden');
+      document.getElementById('resetPasswordSection').classList.remove('hidden');
+    }
+  });
 
-    function toggleAuthMode(mode) {
-        document.getElementById('loginForm').classList.toggle('hidden', mode === 'register');
-        document.getElementById('registerForm').classList.toggle('hidden', mode === 'login');
+  // Alterna tra Login e Registrazione
+  function toggleAuthMode(mode) {
+    if (mode === 'register') {
+      document.getElementById('loginBox').classList.add('hidden');
+      document.getElementById('registerBox').classList.remove('hidden');
+    } else {
+      document.getElementById('registerBox').classList.add('hidden');
+      document.getElementById('loginBox').classList.remove('hidden');
+    }
+  }
+
+  // --- 1. GESTIONE LOGIN ---
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        currentUser = data.user;
+        userToken = data.token;
+        setupDashboard();
+      } else {
+        alert("Errore Login: " + data.error);
+      }
+    } catch (err) {
+      alert("Errore durante la connessione al server.");
+    }
+  });
+
+  // --- 2. GESTIONE REGISTRAZIONE ---
+  document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const full_name = document.getElementById('regName').value;
+    const email = document.getElementById('regEmail').value;
+    const phone = document.getElementById('regPhone').value;
+    const password = document.getElementById('regPassword').value;
+    const role = document.getElementById('regRole').value;
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, full_name, phone, role })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        alert("Registrazione completata! Ora puoi effettuare il login.");
+        toggleAuthMode('login');
+      } else {
+        alert("Errore Registrazione: " + data.error);
+      }
+    } catch (err) {
+      alert("Errore durante la connessione al server.");
+    }
+  });
+
+  // --- 3. RICHIEDI RESET PASSWORD ---
+  async function richiediResetPassword() {
+    const email = prompt("Inserisci la tua email per ricevere il link di ripristino:");
+    if (!email) return;
+
+    try {
+      const res = await fetch('/api/auth/reset-password-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      alert(data.message || data.error);
+    } catch (err) {
+      alert("Errore nell'invio della richiesta.");
+    }
+  }
+
+  // --- 4. SALVA NUOVA PASSWORD ---
+  document.getElementById('updatePasswordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+
+    if (!accessToken) {
+      alert('Link di ripristino non valido o scaduto.');
+      return;
     }
 
-    // REGISTRAZIONE
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const body = {
-            full_name: document.getElementById('regName').value,
-            email: document.getElementById('regEmail').value,
-            password: document.getElementById('regPassword').value,
-            phone: document.getElementById('regPhone').value,
-            role: document.getElementById('regRole').value
-        };
+    const newPassword = document.getElementById('newPassword').value;
 
-        const res = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert('Registrazione completata! Ora effettua il login.');
-            toggleAuthMode('login');
-        } else alert('Errore: ' + data.error);
-    });
+    try {
+      const res = await fetch('/api/auth/update-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          new_password: newPassword,
+          access_token: accessToken
+        })
+      });
 
-    // LOGIN
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: document.getElementById('loginEmail').value,
-                password: document.getElementById('loginPassword').value
-            })
-        });
-        const data = await res.json();
-        if (data.success) {
-            currentUser = data.user;
-            localStorage.setItem('user', JSON.stringify(currentUser));
-            showDashboard();
-        } else alert('Login fallito: ' + data.error);
-    });
-
-    function logout() {
-        localStorage.removeItem('user');
-        currentUser = null;
-        document.getElementById('auth-section').classList.remove('hidden');
-        document.getElementById('dashboard-section').classList.add('hidden');
+      const data = await res.json();
+      if (data.success) {
+        alert('Password aggiornata con successo! Effettua il login con la nuova password.');
+        window.location.href = '/';
+      } else {
+        alert('Errore: ' + data.error);
+      }
+    } catch (err) {
+      alert("Errore nel salvataggio della password.");
     }
+  });
 
-    function showDashboard() {
-        document.getElementById('auth-section').classList.add('hidden');
-        document.getElementById('dashboard-section').classList.remove('hidden');
-        document.getElementById('userName').innerText = currentUser.full_name;
-        document.getElementById('userRole').innerText = currentUser.role;
+  // --- DASHBOARD E LOGICA APPLICATIVA ---
+  function setupDashboard() {
+    document.getElementById('authSection').classList.add('hidden');
+    document.getElementById('appSection').classList.remove('hidden');
 
-        if (currentUser.role === 'sitter') {
-            document.getElementById('sitter-view').classList.remove('hidden');
-            document.getElementById('family-view').classList.add('hidden');
-        } else {
-            document.getElementById('family-view').classList.remove('hidden');
-            document.getElementById('sitter-view').classList.add('hidden');
-            caricaSlot();
-        }
+    document.getElementById('userName').innerText = currentUser.full_name;
+    document.getElementById('userRole').innerText = currentUser.role;
+
+    if (currentUser.role === 'sitter') {
+      document.getElementById('sitterSection').classList.remove('hidden');
+    } else {
+      document.getElementById('familySection').classList.remove('hidden');
+      caricaDisponibilita();
     }
+  }
 
-    // CARICA SLOT PER FAMIGLIE
-    async function caricaSlot() {
-        const res = await fetch('/api/slots');
-        const data = await res.json();
-        const container = document.getElementById('slotsContainer');
-        if (!data.success || !data.data.length) {
-            container.innerHTML = '<p>Nessuna disponibilità aperta.</p>';
-            return;
-        }
-        container.innerHTML = data.data.map(s => `
-            <div class="slot-card">
-                <h4>${s.users ? s.users.full_name : 'Babysitter'}</h4>
-                <p>Data: ${s.slot_date} | Orario: ${s.time_slot} | ${s.hourly_rate}€/ora</p>
-                <button class="btn" onclick="prenota('${s.id}', '${s.sitter_id}')">Prenota e Paga Caparra</button>
+  // Carica gli slot per la Famiglia
+  async function caricaDisponibilita() {
+    const container = document.getElementById('slotsContainer');
+    try {
+      const res = await fetch('/api/slots');
+      const result = await res.json();
+
+      if (result.success && result.data.length > 0) {
+        container.innerHTML = result.data.map(slot => `
+          <div class="slot-item">
+            <div>
+              <strong>${slot.users?.full_name || 'Babysitter'}</strong><br>
+              Data: ${slot.slot_date} (${slot.time_slot})<br>
+              Tariffa: €${slot.hourly_rate}/ora
             </div>
+            <button style="width: auto;" onclick="prenotaSlot('${slot.id}', '${slot.sitter_id}', '${slot.users?.phone || ''}', '${slot.slot_date}')">
+              Prenota
+            </button>
+          </div>
         `).join('');
+      } else {
+        container.innerHTML = '<p>Nessuna disponibilità aperta al momento.</p>';
+      }
+    } catch (err) {
+      container.innerHTML = '<p>Errore nel caricamento delle disponibilità.</p>';
     }
+  }
+
+  // Babysitter crea nuova disponibilità
+  document.getElementById('addSlotForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const slot_date = document.getElementById('slotDate').value;
+    const time_slot = document.getElementById('slotTime').value;
+    const hourly_rate = document.getElementById('slotRate').value;
+
+    const res = await fetch('/api/slots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sitter_id: currentUser.id,
+        slot_date,
+        time_slot,
+        hourly_rate
+      })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert("Disponibilità inserita con successo!");
+      document.getElementById('addSlotForm').reset();
+    } else {
+      alert("Errore: " + data.error);
+    }
+  });
+
+  // Famiglia richiede Prenotazione
+  async function prenotaSlot(slotId, sitterId, sitterPhone, bookingDate) {
+    const notes = prompt("Note per la babysitter (opzionale):");
+
+    const res = await fetch('/api/bookings/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slot_id: slotId,
+        family_id: currentUser.id,
+        sitter_id: sitterId,
+        notes: notes || '',
+        sitter_phone: sitterPhone,
+        family_name: currentUser.full_name,
+        booking_date: bookingDate
+      })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert("Richiesta inviata con successo!");
+      caricaDisponibilita();
+    } else {
+      alert("Errore prenotazione: " + data.error);
+    }
+  }
+
+  function logout() {
+    currentUser = null;
+    userToken = null;
+    document.getElementById('appSection').classList.add('hidden');
+    document.getElementById('sitterSection').classList.add('hidden');
+    document.getElementById('familySection').classList.add('hidden');
+    document.getElementById('authSection').classList.remove('hidden');
+  }
 </script>
+
 </body>
 </html>

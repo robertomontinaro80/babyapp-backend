@@ -264,6 +264,53 @@ app.post('/api/payments/create-checkout-session', async (req, res) => {
 });
 
 /* ==========================================================================
+   RECUPERO E RESET PASSWORD
+   ========================================================================== */
+
+// 1. Richiesta invio email di reset
+app.post('/api/auth/reset-password-request', async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.CLIENT_URL}/reset-password.html`,
+    });
+
+    if (error) throw error;
+
+    res.json({ success: true, message: "Email di ripristino inviata con successo!" });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Impostazione della nuova password
+app.post('/api/auth/update-password', async (req, res) => {
+  const { new_password, access_token } = req.body;
+
+  try {
+    // Imposta la sessione dell'utente usando il token inviato da Supabase via email
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token,
+      refresh_token: '', // Non necessario per l'aggiornamento password
+    });
+
+    if (sessionError) throw sessionError;
+
+    // Aggiorna la password
+    const { error } = await supabase.auth.updateUser({
+      password: new_password
+    });
+
+    if (error) throw error;
+
+    res.json({ success: true, message: "Password aggiornata con successo!" });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/* ==========================================================================
    AVVIO SERVER
    ========================================================================== */
 
