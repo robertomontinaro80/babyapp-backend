@@ -196,3 +196,52 @@ app.post('/api/auth/login', async (req, res) => {
     res.status(400).json({ success: false, error: err.message });
   }
 });
+
+/* ==========================================================================
+   WEBHOOK STRIPE (Conferma Automatica Pagamento)
+   ========================================================================== */
+
+// Nota: Stripe richiede il corpo della richiesta grezzo (raw) per la verifica della firma
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+  } catch (err) {
+    console.error(`Errore firma Webhook: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Gestione dell'evento di pagamento completato
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const bookingId = session.metadata.booking_id;
+
+    // 1. Aggiorna la prenotazione come 'accepted'
+    await supabase
+      .from('bookings')
+      .update({ status: 'accepted' })
+      .eq('id', bookingId);
+
+    // 2. Recupera lo slot collegato e aggiorna il suo stato a 'booked'
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('slot_id')
+      .eq('id', bookingId)
+      .single();
+
+    if (booking) {
+      await supabase
+        .from('availability_slots')
+        .update({ status: 'booked' })
+        .eq('id', booking.slot_id);
+    }
+
+    console.log(`Prenotazione ${bookingId} confermata con successo!`);
+  }
+
+  res.json({ received: true });
+});
