@@ -245,3 +245,51 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
 
   res.json({ received: true });
 });
+
+// Inizializzazione condizionale di Twilio
+const twilioClient = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+  : null;
+
+/* -------------------------------------------------------------------------- */
+/* ENDPOINT PRENOTAZIONE CON SMS DI NOTIFICA                                 */
+/* -------------------------------------------------------------------------- */
+app.post('/api/bookings/request', async (req, res) => {
+  const { slot_id, family_id, sitter_id, notes, sitter_phone, family_name, booking_date } = req.body;
+
+  try {
+    // 1. Salva la prenotazione su Supabase
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .insert([{ slot_id, family_id, sitter_id, notes, status: 'requested' }])
+      .select()
+      .single();
+
+    if (bookingError) throw bookingError;
+
+    // 2. Aggiorna lo stato dello slot in 'pending'
+    await supabase
+      .from('availability_slots')
+      .update({ status: 'pending' })
+      .eq('id', slot_id);
+
+    // 3. Invio notifica SMS via Twilio (se configurato e se c'è un numero)
+    if (twilioClient && sitter_phone) {
+      try {
+        await twilioClient.messages.create({
+          body: `BabyApp: La famiglia ${family_name || 'una famiglia'} ti ha richiesto la disponibilità per il giorno ${booking_date}. Accedi all'app per rispondere!`,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: sitter_phone // Deve essere in formato internazionale (es. +393331234567)
+        });
+        console.log(`SMS inviato con successo a ${sitter_phone}`);
+      } catch (smsError) {
+        // L'errore SMS viene registrato nei log ma NON blocca la risposta positiva al client
+        console.error("Errore durante l'invio dell'SMS con Twilio:", smsError.message);
+      }
+    }
+
+    res.status(200).json({ success: true, booking, message: "Prenotazione inviata con successo!" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
