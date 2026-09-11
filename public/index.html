@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BabyApp - Servizio Babysitter</title>
+  <!-- SDK Client Supabase per la gestione nativa delle sessioni e reset password -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
@@ -147,12 +149,27 @@
 </div>
 
 <script>
+  let supabaseClient = null;
   let currentUser = null;
   let userToken = null;
 
-  // Controlla se la pagina è stata aperta da un link di reset password (URL contiene #access_token=)
-  window.addEventListener('DOMContentLoaded', () => {
-    if (window.location.hash && window.location.hash.includes('access_token')) {
+  // Inizializza Supabase recuperando le chiavi dal backend (.env)
+  async function initSupabase() {
+    try {
+      const res = await fetch('/api/config');
+      const config = await res.json();
+      supabaseClient = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+    } catch (err) {
+      console.error("Errore nell'inizializzazione di Supabase:", err);
+    }
+  }
+
+  // Esegue l'inizializzazione al caricamento della pagina
+  window.addEventListener('DOMContentLoaded', async () => {
+    await initSupabase();
+
+    // Controlla se la pagina è stata aperta da un link di reset password (URL contiene #access_token= o type=recovery)
+    if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('type=recovery'))) {
       document.getElementById('authSection').classList.add('hidden');
       document.getElementById('resetPasswordSection').classList.remove('hidden');
     }
@@ -241,38 +258,31 @@
     }
   }
 
-  // --- 4. SALVA NUOVA PASSWORD ---
+  // --- 4. SALVA NUOVA PASSWORD (LATO CLIENT) ---
   document.getElementById('updatePasswordForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const accessToken = hashParams.get('access_token');
+    const newPassword = document.getElementById('newPassword').value;
 
-    if (!accessToken) {
-      alert('Link di ripristino non valido o scaduto.');
+    if (!supabaseClient) {
+      alert("Errore di configurazione Supabase. Riprova tra qualche istante.");
       return;
     }
 
-    const newPassword = document.getElementById('newPassword').value;
-
     try {
-      const res = await fetch('/api/auth/update-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          new_password: newPassword,
-          access_token: accessToken
-        })
+      // Aggiorna l'utente usando la sessione di ripristino catturata dall'URL
+      const { data, error } = await supabaseClient.auth.updateUser({
+        password: newPassword
       });
 
-      const data = await res.json();
-      if (data.success) {
-        alert('Password aggiornata con successo! Effettua il login con la nuova password.');
-        window.location.href = '/';
+      if (error) {
+        alert("Errore: " + error.message);
       } else {
-        alert('Errore: ' + data.error);
+        alert("Password aggiornata con successo! Effettua il login con la nuova password.");
+        window.history.replaceState(null, null, window.location.pathname);
+        window.location.href = '/';
       }
     } catch (err) {
-      alert("Errore nel salvataggio della password.");
+      alert("Errore durante l'aggiornamento della password.");
     }
   });
 

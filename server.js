@@ -310,6 +310,14 @@ app.post('/api/auth/update-password', async (req, res) => {
   }
 });
 
+// Endpoint per passare la configurazione pubblica al Frontend
+app.get('/api/config', (req, res) => {
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY
+  });
+});
+
 /* ==========================================================================
    AVVIO SERVER
    ========================================================================== */
