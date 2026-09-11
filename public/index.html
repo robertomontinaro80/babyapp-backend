@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BabySitter App - Gestione e Prenotazioni</title>
+    <style>
+        :root {
+            --primary: #4A90E2;
+            --success: #2ECC71;
+            --bg: #F4F7F9;
+            --card: #FFFFFF;
+            --text: #2C3E50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background-color: #CBD5E1;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            transition: 0.3s;
+        }
+
+        .tab-btn.active {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .panel {
+            display: none;
+            background: var(--card);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        input, select, textarea, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #CBD5E1;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        button.btn-primary {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button.btn-primary:hover {
+            background-color: #357ABD;
+        }
+
+        .slot-card {
+            border: 1px solid #E2E8F0;
+            border-left: 5px solid var(--primary);
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            background: #FAFAFA;
+        }
+
+        .slot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .badge {
+            background: #E2E8F0;
+            color: var(--text);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>👶 BabySitter Service Platform</h1>
+
+    <!-- Navigazione Tab -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('sitter-panel')">Area Babysitter (Inserisci)</button>
+        <button class="tab-btn" onclick="switchTab('family-panel')">Area Famiglia (Prenota)</button>
+    </div>
+
+    <!-- Pannello 1: Inserimento Disponibilità (Babysitter) -->
+    <div id="sitter-panel" class="panel active">
+        <h2>Pubblica Nuova Disponibilità</h2>
+        <form id="addSlotForm">
+            <div class="form-group">
+                <label for="slotDate">Data</label>
+                <input type="date" id="slotDate" required>
+            </div>
+            <div class="form-group">
+                <label for="timeSlot">Fascia Oraria</label>
+                <select id="timeSlot" required>
+                    <option value="Mattina (08:00 - 13:00)">Mattina (08:00 - 13:00)</option>
+                    <option value="Pomeriggio (13:00 - 18:00)">Pomeriggio (13:00 - 18:00)</option>
+                    <option value="Sera (18:00 - 23:00)">Sera (18:00 - 23:00)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="hourlyRate">Tariffa Oraria (€)</label>
+                <input type="number" step="0.5" id="hourlyRate" value="12.00" required>
+            </div>
+            <button type="submit" class="btn-primary">Salva Disponibilità</button>
+        </form>
+    </div>
+
+    <!-- Pannello 2: Ricerca e Prenotazione (Famiglie) -->
+    <div id="family-panel" class="panel">
+        <h2>Disponibilità Trovate</h2>
+        <button onclick="caricaSlot()" style="margin-bottom: 15px; background: #64748B; color: white;">Aggiorna Lista</button>
+        <div id="slotsContainer">
+            <p>Caricamento in corso...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const HARDCODED_SITTER_ID = "a1b2c3d4-0000-0000-0000-000000000001"; // ID dell'utente Maria Rossi
+
+    function switchTab(panelId) {
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        
+        document.getElementById(panelId).classList.add('active');
+        event.target.classList.add('active');
+
+        if (panelId === 'family-panel') {
+            caricaSlot();
+        }
+    }
+
+    // Aggiungi nuova disponibilità nel DB
+    document.getElementById('addSlotForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const slotData = {
+            sitter_id: HARDCODED_SITTER_ID,
+            slot_date: document.getElementById('slotDate').value,
+            time_slot: document.getElementById('timeSlot').value,
+            hourly_rate: parseFloat(document.getElementById('hourlyRate').value)
+        };
+
+        try {
+            const response = await fetch('/api/slots', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(slotData)
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                alert('Disponibilità inserita con successo!');
+                this.reset();
+            } else {
+                alert('Errore: ' + result.error);
+            }
+        } catch (err) {
+            alert('Errore durante la trasmissione dei dati.');
+        }
+    });
+
+    // Carica gli slot aperti dal backend
+    async function caricaSlot() {
+        const container = document.getElementById('slotsContainer');
+        container.innerHTML = '<p>Caricamento in corso...</p>';
+
+        try {
+            const response = await fetch('/api/slots');
+            const result = await response.json();
+
+            if (!result.success || !result.data.length) {
+                container.innerHTML = '<p>Nessuna disponibilità aperta al momento.</p>';
+                return;
+            }
+
+            container.innerHTML = result.data.map(slot => `
+                <div class="slot-card">
+                    <div class="slot-header">
+                        <h3>${slot.users ? slot.users.full_name : 'Babysitter'}</h3>
+                        <span class="badge">${slot.status}</span>
+                    </div>
+                    <p><strong>Data:</strong> ${slot.slot_date}</p>
+                    <p><strong>Orario:</strong> ${slot.time_slot}</p>
+                    <p><strong>Tariffa:</strong> ${slot.hourly_rate} €/ora</p>
+                    <div style="margin-top: 10px;">
+                        <input type="text" id="notes-${slot.id}" placeholder="Esempio: Ritiro da scuola ore 16:00" style="margin-bottom: 8px;">
+                        <button class="btn-primary" onclick="prenotaSlot('${slot.id}', '${slot.sitter_id}', '${slot.slot_date}', '${slot.users ? slot.users.full_name : 'Sitter'}', ${slot.hourly_rate})">
+                            Prenota e Paga Caparra (15€)
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (err) {
+            container.innerHTML = '<p style="color:red;">Errore durante il caricamento dei dati.</p>';
+        }
+    }
+
+    // Gestione prenotazione e pagamento Stripe
+    async function prenotaSlot(slotId, sitterId, slotDate, sitterName, hourlyRate) {
+        const notes = document.getElementById(`notes-${slotId}`).value;
+
+        try {
+            // 1. Invio richiesta di prenotazione
+            const bookingRes = await fetch('/api/bookings/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    slot_id: slotId,
+                    family_id: HARDCODED_SITTER_ID,
+                    sitter_id: sitterId,
+                    notes: notes,
+                    booking_date: slotDate,
+                    family_name: "Famiglia Rossi"
+                })
+            });
+
+            const bookingData = await bookingRes.json();
+
+            if (!bookingData.success) {
+                alert('Errore durante la prenotazione: ' + bookingData.error);
+                return;
+            }
+
+            // 2. Creazione sessione di pagamento Stripe per la caparra
+            const paymentRes = await fetch('/api/payments/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    booking_id: bookingData.booking.id,
+                    amount_eur: 15.00,
+                    sitter_name: sitterName
+                })
+            });
+
+            const paymentData = await paymentRes.json();
+
+            if (paymentData.url) {
+                // Reindirizzamento al checkout di Stripe
+                window.location.href = paymentData.url;
+            } else {
+                alert('Prenotazione registrata. (Stripe non configurato per il reindirizzamento)');
+            }
+
+        } catch (err) {
+            alert('Errore nell\'elaborazione della richiesta.');
+        }
+    }
+</script>
+
+</body>
+</html>
