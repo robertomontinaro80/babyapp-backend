@@ -182,6 +182,53 @@ app.post('/api/slots', async (req, res) => {
    PRENOTAZIONI & NOTIFICHE SMS
    ========================================================================== */
 
+   // 1. Recupera prenotazioni per l'utente (Babysitter o Famiglia)
+app.get('/api/bookings', async (req, res) => {
+  const { userId, role } = req.query;
+
+  if (!userId || !role) {
+    return res.status(400).json({ success: false, error: 'Parametri mancanti.' });
+  }
+
+  const columnFilter = role === 'sitter' ? 'sitter_id' : 'family_id';
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      id,
+      status,
+      notes,
+      booking_date,
+      created_at,
+      slots ( time_slot, hourly_rate ),
+      family:users!bookings_family_id_fkey ( full_name, phone ),
+      sitter:users!bookings_sitter_id_fkey ( full_name, phone )
+    `)
+    .eq(columnFilter, userId)
+    .order('created_at', { ascending: false });
+
+  if (error) return res.status(500).json({ success: false, error: error.message });
+  res.json({ success: true, data });
+});
+
+// 2. La Babysitter Accetta o Rifiuta una prenotazione
+app.post('/api/bookings/respond', async (req, res) => {
+  const { booking_id, status } = req.body; // status: 'confirmed' o 'rejected'
+
+  if (!['confirmed', 'rejected'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'Stato non valido.' });
+  }
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status })
+    .eq('id', booking_id)
+    .select();
+
+  if (error) return res.status(500).json({ success: false, error: error.message });
+  res.json({ success: true, message: `Prenotazione ${status === 'confirmed' ? 'accettata' : 'rifiutata'}.` });
+});
+
 app.post('/api/bookings/request', async (req, res) => {
   const { slot_id, family_id, sitter_id, notes, sitter_phone, family_name, booking_date } = req.body;
 

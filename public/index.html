@@ -4,14 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BabyApp - Servizio Babysitter</title>
-  <!-- SDK Client Supabase per la gestione nativa delle sessioni e reset password -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
     .container { max-width: 800px; margin: 0 auto; }
     .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-    h1, h2 { color: #2c3e50; margin-top: 0; }
+    h1, h2, h3 { color: #2c3e50; margin-top: 0; }
     .form-group { margin-bottom: 15px; }
     label { display: block; margin-bottom: 5px; font-weight: bold; }
     input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
@@ -19,9 +18,15 @@
     button:hover { background-color: #2980b9; }
     .btn-secondary { background-color: #e74c3c; margin-top: 10px; }
     .btn-secondary:hover { background-color: #c0392b; }
+    .btn-success { background-color: #2ecc71; width: auto; padding: 8px 15px; margin-right: 5px; }
+    .btn-danger { background-color: #e74c3c; width: auto; padding: 8px 15px; }
     .link-action { font-size: 13px; color: #3498db; text-decoration: none; cursor: pointer; display: inline-block; margin-top: 8px; }
     .link-action:hover { text-decoration: underline; }
-    .slot-item { border-left: 4px solid #3498db; background: #f8f9fa; padding: 15px; margin-bottom: 10px; border-radius: 0 5px 5px 0; display: flex; justify-content: space-between; align-items: center; }
+    .slot-item, .booking-item { border-left: 4px solid #3498db; background: #f8f9fa; padding: 15px; margin-bottom: 10px; border-radius: 0 5px 5px 0; display: flex; justify-content: space-between; align-items: center; }
+    .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+    .badge-pending { background: #f1c40f; color: #fff; }
+    .badge-confirmed { background: #2ecc71; color: #fff; }
+    .badge-rejected { background: #e74c3c; color: #fff; }
     .hidden { display: none; }
   </style>
 </head>
@@ -29,52 +34,28 @@
 
 <div class="container">
 
-  <!-- ==================================================================== -->
-  <!-- SEZIONE 1: AUTENTICAZIONE (LOGIN / REGISTRAZIONE)                  -->
-  <!-- ==================================================================== -->
+  <!-- AUTH SECTION -->
   <div id="authSection" class="card">
-    
-    <!-- FORM LOGIN -->
     <div id="loginBox">
       <h2>Accedi a BabyApp</h2>
       <form id="loginForm">
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" id="loginEmail" required>
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="loginPassword" required>
-        </div>
+        <div class="form-group"><label>Email</label><input type="email" id="loginEmail" required></div>
+        <div class="form-group"><label>Password</label><input type="password" id="loginPassword" required></div>
         <button type="submit">Accedi</button>
       </form>
-      
       <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
         <span class="link-action" onclick="richiediResetPassword()">Password dimenticata?</span>
         <span class="link-action" onclick="toggleAuthMode('register')">Non hai un account? Registrati</span>
       </div>
     </div>
 
-    <!-- FORM REGISTRAZIONE -->
     <div id="registerBox" class="hidden">
       <h2>Crea un nuovo Account</h2>
       <form id="registerForm">
-        <div class="form-group">
-          <label>Nome Completo</label>
-          <input type="text" id="regName" required>
-        </div>
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" id="regEmail" required>
-        </div>
-        <div class="form-group">
-          <label>Telefono (es. +393331234567)</label>
-          <input type="tel" id="regPhone" required placeholder="+393331234567">
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="regPassword" required minlength="6">
-        </div>
+        <div class="form-group"><label>Nome Completo</label><input type="text" id="regName" required></div>
+        <div class="form-group"><label>Email</label><input type="email" id="regEmail" required></div>
+        <div class="form-group"><label>Telefono</label><input type="tel" id="regPhone" required placeholder="+393331234567"></div>
+        <div class="form-group"><label>Password</label><input type="password" id="regPassword" required minlength="6"></div>
         <div class="form-group">
           <label>Ruolo</label>
           <select id="regRole">
@@ -88,62 +69,46 @@
         <span class="link-action" onclick="toggleAuthMode('login')">Hai già un account? Accedi</span>
       </div>
     </div>
-
   </div>
 
-  <!-- ==================================================================== -->
-  <!-- SEZIONE 2: RESET PASSWORD (Visibile solo dopo click da Email)         -->
-  <!-- ==================================================================== -->
+  <!-- RESET PASSWORD SECTION -->
   <div id="resetPasswordSection" class="card hidden">
     <h2>Imposta Nuova Password</h2>
-    <p>Inserisci la nuova password per completare il ripristino.</p>
     <form id="updatePasswordForm">
-      <div class="form-group">
-        <label>Nuova Password</label>
-        <input type="password" id="newPassword" required minlength="6">
-      </div>
+      <div class="form-group"><label>Nuova Password</label><input type="password" id="newPassword" required minlength="6"></div>
       <button type="submit">Aggiorna Password</button>
     </form>
   </div>
 
-  <!-- ==================================================================== -->
-  <!-- SEZIONE 3: DASHBOARD APPLICAZIONE (Dopo il Login)                    -->
-  <!-- ==================================================================== -->
+  <!-- APP SECTION -->
   <div id="appSection" class="hidden">
-    
     <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
-      <div>
-        Benvenuto/a, <strong id="userName">Utente</strong> (<span id="userRole">ruolo</span>)
-      </div>
+      <div>Benvenuto/a, <strong id="userName">Utente</strong> (<span id="userRole">ruolo</span>)</div>
       <button onclick="logout()" class="btn-secondary" style="width: auto; padding: 6px 15px;">Logout</button>
     </div>
 
-    <!-- SEZIONE BABYSITTER: Aggiungi Disponibilità -->
+    <!-- SEZIONE BABYSITTER -->
     <div id="sitterSection" class="card hidden">
       <h2>Offri una Disponibilità</h2>
       <form id="addSlotForm">
-        <div class="form-group">
-          <label>Data</label>
-          <input type="date" id="slotDate" required>
-        </div>
-        <div class="form-group">
-          <label>Fascia Oraria (es. 15:00 - 19:00)</label>
-          <input type="text" id="slotTime" placeholder="es. 15:00 - 19:00" required>
-        </div>
-        <div class="form-group">
-          <label>Tariffa Oraria (€)</label>
-          <input type="number" id="slotRate" min="5" step="0.5" required>
-        </div>
+        <div class="form-group"><label>Data</label><input type="date" id="slotDate" required></div>
+        <div class="form-group"><label>Fascia Oraria</label><input type="text" id="slotTime" placeholder="es. 15:00 - 19:00" required></div>
+        <div class="form-group"><label>Tariffa Oraria (€)</label><input type="number" id="slotRate" min="5" step="0.5" required></div>
         <button type="submit">Pubblica Disponibilità</button>
       </form>
     </div>
 
-    <!-- SEZIONE FAMIGLIA: Visualizza Disponibilità e Prenota -->
+    <!-- SEZIONE FAMIGLIA -->
     <div id="familySection" class="card hidden">
       <h2>Disponibilità Babysitter Aperte</h2>
       <div id="slotsContainer">Caricamento in corso...</div>
     </div>
 
+    <!-- SEZIONE PRENOTAZIONI (CONDIVISA) -->
+    <div class="card">
+      <h2>Richieste e Prenotazioni</h2>
+      <div id="bookingsContainer">Caricamento prenotazioni...</div>
+    </div>
   </div>
 
 </div>
@@ -151,160 +116,70 @@
 <script>
   let supabaseClient = null;
   let currentUser = null;
-  let userToken = null;
 
-  // Inizializza Supabase recuperando le chiavi dal backend (.env)
   async function initSupabase() {
     try {
       const res = await fetch('/api/config');
       const config = await res.json();
       supabaseClient = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
     } catch (err) {
-      console.error("Errore nell'inizializzazione di Supabase:", err);
+      console.error("Errore init Supabase:", err);
     }
   }
 
-  // Esegue l'inizializzazione al caricamento della pagina
   window.addEventListener('DOMContentLoaded', async () => {
     await initSupabase();
-
-    // Controlla se la pagina è stata aperta da un link di reset password (URL contiene #access_token= o type=recovery)
     if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('type=recovery'))) {
       document.getElementById('authSection').classList.add('hidden');
       document.getElementById('resetPasswordSection').classList.remove('hidden');
     }
   });
 
-  // Alterna tra Login e Registrazione
   function toggleAuthMode(mode) {
-    if (mode === 'register') {
-      document.getElementById('loginBox').classList.add('hidden');
-      document.getElementById('registerBox').classList.remove('hidden');
-    } else {
-      document.getElementById('registerBox').classList.add('hidden');
-      document.getElementById('loginBox').classList.remove('hidden');
-    }
+    document.getElementById('loginBox').classList.toggle('hidden', mode === 'register');
+    document.getElementById('registerBox').classList.toggle('hidden', mode === 'login');
   }
 
-  // --- 1. GESTIONE LOGIN ---
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
-
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        currentUser = data.user;
-        userToken = data.token;
-        setupDashboard();
-      } else {
-        alert("Errore Login: " + data.error);
-      }
-    } catch (err) {
-      alert("Errore durante la connessione al server.");
-    }
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: document.getElementById('loginEmail').value,
+        password: document.getElementById('loginPassword').value
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      currentUser = data.user;
+      setupDashboard();
+    } else alert("Errore Login: " + data.error);
   });
 
-  // --- 2. GESTIONE REGISTRAZIONE ---
   document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const full_name = document.getElementById('regName').value;
-    const email = document.getElementById('regEmail').value;
-    const phone = document.getElementById('regPhone').value;
-    const password = document.getElementById('regPassword').value;
-    const role = document.getElementById('regRole').value;
-
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, full_name, phone, role })
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        alert("Registrazione completata! Ora puoi effettuare il login.");
-        toggleAuthMode('login');
-      } else {
-        alert("Errore Registrazione: " + data.error);
-      }
-    } catch (err) {
-      alert("Errore durante la connessione al server.");
-    }
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        full_name: document.getElementById('regName').value,
+        email: document.getElementById('regEmail').value,
+        phone: document.getElementById('regPhone').value,
+        password: document.getElementById('regPassword').value,
+        role: document.getElementById('regRole').value
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert("Registrazione completata!");
+      toggleAuthMode('login');
+    } else alert("Errore Registrazione: " + data.error);
   });
 
-  // --- 3. RICHIEDI RESET PASSWORD ---
-  async function richiediResetPassword() {
-    const email = prompt("Inserisci la tua email per ricevere il link di ripristino:");
-    if (!email) return;
-
-    try {
-      const res = await fetch('/api/auth/reset-password-request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      const data = await res.json();
-      alert(data.message || data.error);
-    } catch (err) {
-      alert("Errore nell'invio della richiesta.");
-    }
-  }
-
-  // --- 4. SALVA NUOVA PASSWORD (LATO CLIENT) ---
-  document.getElementById('updatePasswordForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const newPassword = document.getElementById('newPassword').value;
-
-    if (!supabaseClient) {
-      alert("Errore di configurazione Supabase. Riprova tra qualche istante.");
-      return;
-    }
-
-    try {
-      // Estrae i token dall'URL (#access_token=...&refresh_token=...)
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const accessToken = hashParams.get('access_token');
-      const refreshToken = hashParams.get('refresh_token');
-
-      // Imposta esplicitamente la sessione prima di aggiornare l'utente
-      if (accessToken) {
-        const { error: sessionError } = await supabaseClient.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken || ''
-        });
-        if (sessionError) throw sessionError;
-      }
-
-      // Aggiorna la password dell'utente
-      const { data, error } = await supabaseClient.auth.updateUser({
-        password: newPassword
-      });
-
-      if (error) {
-        alert("Errore: " + error.message);
-      } else {
-        alert("Password aggiornata con successo! Effettua il login con la nuova password.");
-        window.history.replaceState(null, null, window.location.pathname);
-        window.location.href = '/';
-      }
-    } catch (err) {
-      alert("Errore durante l'aggiornamento della password: " + err.message);
-    }
-  });
-
-  // --- DASHBOARD E LOGICA APPLICATIVA ---
   function setupDashboard() {
     document.getElementById('authSection').classList.add('hidden');
     document.getElementById('appSection').classList.remove('hidden');
-
     document.getElementById('userName').innerText = currentUser.full_name;
     document.getElementById('userRole').innerText = currentUser.role;
 
@@ -314,67 +189,82 @@
       document.getElementById('familySection').classList.remove('hidden');
       caricaDisponibilita();
     }
+    caricaPrenotazioni();
   }
 
-  // Carica gli slot per la Famiglia
   async function caricaDisponibilita() {
     const container = document.getElementById('slotsContainer');
-    try {
-      const res = await fetch('/api/slots');
-      const result = await res.json();
+    const res = await fetch('/api/slots');
+    const result = await res.json();
 
-      if (result.success && result.data.length > 0) {
-        container.innerHTML = result.data.map(slot => `
-          <div class="slot-item">
-            <div>
-              <strong>${slot.users?.full_name || 'Babysitter'}</strong><br>
-              Data: ${slot.slot_date} (${slot.time_slot})<br>
-              Tariffa: €${slot.hourly_rate}/ora
-            </div>
-            <button style="width: auto;" onclick="prenotaSlot('${slot.id}', '${slot.sitter_id}', '${slot.users?.phone || ''}', '${slot.slot_date}')">
-              Prenota
-            </button>
+    if (result.success && result.data.length > 0) {
+      container.innerHTML = result.data.map(slot => `
+        <div class="slot-item">
+          <div>
+            <strong>${slot.users?.full_name || 'Babysitter'}</strong><br>
+            Data: ${slot.slot_date} (${slot.time_slot}) | €${slot.hourly_rate}/ora
           </div>
-        `).join('');
-      } else {
-        container.innerHTML = '<p>Nessuna disponibilità aperta al momento.</p>';
-      }
-    } catch (err) {
-      container.innerHTML = '<p>Errore nel caricamento delle disponibilità.</p>';
-    }
+          <button style="width: auto;" onclick="prenotaSlot('${slot.id}', '${slot.sitter_id}', '${slot.users?.phone || ''}', '${slot.slot_date}')">Prenota</button>
+        </div>
+      `).join('');
+    } else container.innerHTML = '<p>Nessuna disponibilità aperta al momento.</p>';
   }
 
-  // Babysitter crea nuova disponibilità
-  document.getElementById('addSlotForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const slot_date = document.getElementById('slotDate').value;
-    const time_slot = document.getElementById('slotTime').value;
-    const hourly_rate = document.getElementById('slotRate').value;
+  async function caricaPrenotazioni() {
+    const container = document.getElementById('bookingsContainer');
+    const res = await fetch(`/api/bookings?userId=${currentUser.id}&role=${currentUser.role}`);
+    const result = await res.json();
 
-    const res = await fetch('/api/slots', {
+    if (result.success && result.data.length > 0) {
+      container.innerHTML = result.data.map(b => {
+        const altroUtente = currentUser.role === 'sitter' ? b.family?.full_name : b.sitter?.full_name;
+        const telefono = currentUser.role === 'sitter' ? b.family?.phone : b.sitter?.phone;
+        
+        let statoBadge = `<span class="badge badge-pending">In attesa</span>`;
+        if (b.status === 'confirmed') statoBadge = `<span class="badge badge-confirmed">Confermata</span>`;
+        if (b.status === 'rejected') statoBadge = `<span class="badge badge-rejected">Rifiutata</span>`;
+
+        let azioniSitter = '';
+        if (currentUser.role === 'sitter' && b.status === 'pending') {
+          azioniSitter = `
+            <div style="margin-top: 10px;">
+              <button class="btn-success" onclick="rispondiPrenotazione('${b.id}', 'confirmed')">Accetta</button>
+              <button class="btn-danger" onclick="rispondiPrenotazione('${b.id}', 'rejected')">Rifiuta</button>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="booking-item" style="flex-direction: column; align-items: flex-start;">
+            <div style="display: flex; justify-content: space-between; width: 100%;">
+              <strong>${currentUser.role === 'sitter' ? 'Famiglia' : 'Babysitter'}: ${altroUtente || 'N/D'}</strong>
+              ${statoBadge}
+            </div>
+            <div style="margin-top: 5px; font-size: 14px;">
+              Data: ${b.booking_date} | Orario: ${b.slots?.time_slot || 'N/D'}<br>
+              Telefono: ${telefono || 'N/D'} ${b.notes ? `<br><em>Note: ${b.notes}</em>` : ''}
+            </div>
+            ${azioniSitter}
+          </div>
+        `;
+      }).join('');
+    } else container.innerHTML = '<p>Nessuna prenotazione trovata.</p>';
+  }
+
+  async function rispondiPrenotazione(bookingId, status) {
+    const res = await fetch('/api/bookings/respond', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sitter_id: currentUser.id,
-        slot_date,
-        time_slot,
-        hourly_rate
-      })
+      body: JSON.stringify({ booking_id: bookingId, status })
     });
-
     const data = await res.json();
     if (data.success) {
-      alert("Disponibilità inserita con successo!");
-      document.getElementById('addSlotForm').reset();
-    } else {
-      alert("Errore: " + data.error);
-    }
-  });
+      caricaPrenotazioni();
+    } else alert("Errore: " + data.error);
+  }
 
-  // Famiglia richiede Prenotazione
   async function prenotaSlot(slotId, sitterId, sitterPhone, bookingDate) {
     const notes = prompt("Note per la babysitter (opzionale):");
-
     const res = await fetch('/api/bookings/request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -388,25 +278,21 @@
         booking_date: bookingDate
       })
     });
-
     const data = await res.json();
     if (data.success) {
       alert("Richiesta inviata con successo!");
       caricaDisponibilita();
-    } else {
-      alert("Errore prenotazione: " + data.error);
-    }
+      caricaPrenotazioni();
+    } else alert("Errore prenotazione: " + data.error);
   }
 
   function logout() {
     currentUser = null;
-    userToken = null;
     document.getElementById('appSection').classList.add('hidden');
     document.getElementById('sitterSection').classList.add('hidden');
     document.getElementById('familySection').classList.add('hidden');
     document.getElementById('authSection').classList.remove('hidden');
   }
 </script>
-
 </body>
 </html>
