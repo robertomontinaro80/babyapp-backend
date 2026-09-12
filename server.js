@@ -162,19 +162,37 @@ app.get('/api/slots', async (req, res) => {
   }
 });
 
-// Aggiungi nuova disponibilità
+// POST: Aggiungi un nuovo slot (Babysitter)
 app.post('/api/slots', async (req, res) => {
   const { sitter_id, slot_date, time_slot, hourly_rate } = req.body;
+
+  if (!sitter_id || !slot_date || !time_slot || !hourly_rate) {
+    return res.status(400).json({ success: false, error: 'Tutti i campi sono obbligatori.' });
+  }
+
   try {
     const { data, error } = await supabase
-      .from('availability_slots')
-      .insert([{ sitter_id, slot_date, time_slot, hourly_rate, status: 'available' }])
+      .from('slots')
+      .insert([
+        {
+          sitter_id,
+          slot_date,
+          time_slot,
+          hourly_rate: parseFloat(hourly_rate), // Converte in numero
+          status: 'open'
+        }
+      ])
       .select();
 
-    if (error) throw error;
-    res.status(201).json({ success: true, data });
+    if (error) {
+      console.error("Errore inserimento slot Supabase:", error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    res.json({ success: true, data });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error("Errore server:", err);
+    res.json({ success: false, error: 'Errore interno del server.' });
   }
 });
 
