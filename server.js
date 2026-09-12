@@ -7,6 +7,23 @@ const twilio = require('twilio');
 const app = express();
 
 /* ==========================================================================
+   INIZIALIZZAZIONE SERVIZI CLOUD
+   ========================================================================== */
+
+// 1. Supabase
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+
+// 2. Twilio (Opzionale)
+const twilioClient = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+  : null;
+
+// 3. Stripe (Opzionale)
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? require('stripe')(process.env.STRIPE_SECRET_KEY)
+  : null;
+
+/* ==========================================================================
    WEBHOOK STRIPE (Deve stare PRIMA di express.json())
    ========================================================================== */
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -14,7 +31,6 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
     return res.status(400).send('Stripe non configurato.');
   }
 
-  const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
   const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -31,9 +47,10 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
     const session = event.data.object;
     const bookingId = session.metadata.booking_id;
 
+    // Aggiorna lo stato della prenotazione a "confirmed"
     await supabase
       .from('bookings')
-      .update({ status: 'accepted' })
+      .update({ status: 'confirmed' })
       .eq('id', bookingId);
 
     const { data: booking } = await supabase
@@ -42,14 +59,15 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
       .eq('id', bookingId)
       .single();
 
-    if (booking) {
+    if (booking && booking.slot_id) {
+      // Aggiorna la tabella "slots" a "booked"
       await supabase
-        .from('availability_slots')
+        .from('slots')
         .update({ status: 'booked' })
         .eq('id', booking.slot_id);
     }
 
-    console.log(`Prenotazione ${bookingId} confermata con successo!`);
+    console.log(`Prenotazione ${bookingId} confermata con successo via Stripe!`);
   }
 
   res.json({ received: true });
@@ -59,23 +77,6 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
-
-/* ==========================================================================
-   INIZIALIZZAZIONE SERVIZI CLOUD
-   ========================================================================== */
-
-// 1. Supabase
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-
-// 2. Twilio (Opzionale)
-const twilioClient = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
-  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-  : null;
-
-// 3. Stripe (Opzionale)
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? require('stripe')(process.env.STRIPE_SECRET_KEY)
-  : null;
 
 /* ==========================================================================
    ROTTE BASE & AUTENTICAZIONE
@@ -147,7 +148,6 @@ app.post('/api/auth/login', async (req, res) => {
    DISPONIBILITÀ (SLOTS)
    ========================================================================== */
 
-// Lista disponibilità aperte
 // GET: Recupera gli slot aperti (per le Famiglie) oppure tutti gli slot di una specifica Babysitter
 app.get('/api/slots', async (req, res) => {
   const { sitter_id } = req.query;
@@ -214,7 +214,7 @@ app.post('/api/slots', async (req, res) => {
    PRENOTAZIONI & NOTIFICHE SMS
    ========================================================================== */
 
-   // 1. Recupera prenotazioni per l'utente (Babysitter o Famiglia)
+// 1. Recupera prenotazioni per l'utente (Babysitter o Famiglia)
 app.get('/api/bookings', async (req, res) => {
   const { userId, role } = req.query;
 
@@ -243,44 +243,27 @@ app.get('/api/bookings', async (req, res) => {
   res.json({ success: true, data });
 });
 
-// 2. La Babysitter Accetta o Rifiuta una prenotazione
-app.post('/api/bookings/respond', async (req, res) => {
-  const { booking_id, status } = req.body; // status: 'confirmed' o 'rejected'
-
-  if (!['confirmed', 'rejected'].includes(status)) {
-    return res.status(400).json({ success: false, error: 'Stato non valido.' });
-  }
-
-  const { data, error } = await supabase
-    .from('bookings')
-    .update({ status })
-    .eq('id', booking_id)
-    .select();
-
-  if (error) return res.status(500).json({ success: false, error: error.message });
-  res.json({ success: true, message: `Prenotazione ${status === 'confirmed' ? 'accettata' : 'rifiutata'}.` });
-});
-
+// 2. Richiesta di prenotazione da parte della Famiglia
 app.post('/api/bookings/request', async (req, res) => {
   const { slot_id, family_id, sitter_id, notes, sitter_phone, family_name, booking_date } = req.body;
 
   try {
-    // 1. Salva prenotazione
+    // Salva prenotazione nello stato 'pending'
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
-      .insert([{ slot_id, family_id, sitter_id, notes, status: 'requested' }])
+      .insert([{ slot_id, family_id, sitter_id, booking_date, notes, status: 'pending' }])
       .select()
       .single();
 
     if (bookingError) throw bookingError;
 
-    // 2. Aggiorna stato slot
+    // Aggiorna stato slot in 'pending' o lascia 'open'
     await supabase
-      .from('availability_slots')
+      .from('slots')
       .update({ status: 'pending' })
       .eq('id', slot_id);
 
-    // 3. Invio SMS se Twilio è configurato
+    // Invio SMS se Twilio è attivo
     if (twilioClient && sitter_phone) {
       try {
         await twilioClient.messages.create({
@@ -300,6 +283,39 @@ app.post('/api/bookings/request', async (req, res) => {
   }
 });
 
+// 3. La Babysitter Accetta o Rifiuta una prenotazione
+app.post('/api/bookings/respond', async (req, res) => {
+  const { booking_id, status } = req.body; // status: 'confirmed' o 'rejected'
+
+  if (!['confirmed', 'rejected'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'Stato non valido.' });
+  }
+
+  try {
+    const { data: booking, error } = await supabase
+      .from('bookings')
+      .update({ status })
+      .eq('id', booking_id)
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ success: false, error: error.message });
+
+    // Se la prenotazione viene confermata o rifiutata, aggiorniamo lo stato dello slot associato
+    if (booking && booking.slot_id) {
+      const newSlotStatus = status === 'confirmed' ? 'booked' : 'open';
+      await supabase
+        .from('slots')
+        .update({ status: newSlotStatus })
+        .eq('id', booking.slot_id);
+    }
+
+    res.json({ success: true, message: `Prenotazione ${status === 'confirmed' ? 'accettata' : 'rifiutata'}.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 /* ==========================================================================
    PAGAMENTI STRIPE
    ========================================================================== */
@@ -314,6 +330,7 @@ app.post('/api/payments/create-checkout-session', async (req, res) => {
   }
 
   const { booking_id, amount_eur, sitter_name } = req.body;
+  const clientUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -331,8 +348,8 @@ app.post('/api/payments/create-checkout-session', async (req, res) => {
         },
       ],
       mode: 'payment',
-      success_url: `${process.env.CLIENT_URL}/success.html?booking_id=${booking_id}`,
-      cancel_url: `${process.env.CLIENT_URL}/cancel.html`,
+      success_url: `${clientUrl}/success.html?booking_id=${booking_id}`,
+      cancel_url: `${clientUrl}/cancel.html`,
       metadata: { booking_id },
     });
 
@@ -343,16 +360,17 @@ app.post('/api/payments/create-checkout-session', async (req, res) => {
 });
 
 /* ==========================================================================
-   RECUPERO E RESET PASSWORD
+   RECUPERO E RESET PASSWORD & CONFIG
    ========================================================================== */
 
-// 1. Richiesta invio email di reset
+// Richiesta invio email di reset
 app.post('/api/auth/reset-password-request', async (req, res) => {
   const { email } = req.body;
+  const clientUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
 
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.CLIENT_URL}/reset-password.html`,
+      redirectTo: `${clientUrl}/#resetPasswordSection`,
     });
 
     if (error) throw error;
@@ -362,32 +380,6 @@ app.post('/api/auth/reset-password-request', async (req, res) => {
     res.status(400).json({ success: false, error: err.message });
   }
 });
-
-// 2. Impostazione della nuova password
-// app.post('/api/auth/update-password', async (req, res) => {
-//   const { new_password, access_token } = req.body;
-
-//   try {
-//     // Imposta la sessione dell'utente usando il token inviato da Supabase via email
-//     const { error: sessionError } = await supabase.auth.setSession({
-//       access_token,
-//       refresh_token: '', // Non necessario per l'aggiornamento password
-//     });
-
-//     if (sessionError) throw sessionError;
-
-//     // Aggiorna la password
-//     const { error } = await supabase.auth.updateUser({
-//       password: new_password
-//     });
-
-//     if (error) throw error;
-
-//     res.json({ success: true, message: "Password aggiornata con successo!" });
-//   } catch (err) {
-//     res.status(400).json({ success: false, error: err.message });
-//   }
-// });
 
 // Endpoint per passare la configurazione pubblica al Frontend
 app.get('/api/config', (req, res) => {

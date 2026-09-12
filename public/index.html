@@ -20,6 +20,8 @@
     .btn-secondary:hover { background-color: #c0392b; }
     .btn-success { background-color: #2ecc71; width: auto; padding: 8px 15px; margin-right: 5px; }
     .btn-danger { background-color: #e74c3c; width: auto; padding: 8px 15px; }
+    .btn-stripe { background-color: #6772e5; width: auto; padding: 8px 15px; font-size: 13px; margin-top: 5px; }
+    .btn-stripe:hover { background-color: #5469d4; }
     .link-action { font-size: 13px; color: #3498db; text-decoration: none; cursor: pointer; display: inline-block; margin-top: 8px; }
     .link-action:hover { text-decoration: underline; }
     .slot-item, .booking-item { border-left: 4px solid #3498db; background: #f8f9fa; padding: 15px; margin-bottom: 10px; border-radius: 0 5px 5px 0; display: flex; justify-content: space-between; align-items: center; }
@@ -28,6 +30,7 @@
     .badge-confirmed { background: #2ecc71; color: #fff; }
     .badge-rejected { background: #e74c3c; color: #fff; }
     .badge-open { background: #3498db; color: #fff; }
+    .badge-booked { background: #9b59b6; color: #fff; }
     .hidden { display: none; }
   </style>
 </head>
@@ -93,7 +96,7 @@
       <h2>Offri una Disponibilità</h2>
       <form id="addSlotForm">
         <div class="form-group"><label>Data</label><input type="date" id="slotDate" required></div>
-        <div class="form-group"><label>Fascia Oraria (es. 15:00 - 19:00)</label><input type="text" id="slotTime" placeholder="es. 15:00 - 19:00" required></div>
+        <div class="form-group"><label>Fascia Oraria</label><input type="text" id="slotTime" placeholder="es. 15:00 - 19:00" required></div>
         <div class="form-group"><label>Tariffa Oraria (€)</label><input type="number" id="slotRate" min="5" step="0.5" required></div>
         <button type="submit">Pubblica Disponibilità</button>
       </form>
@@ -176,7 +179,7 @@
     });
     const data = await res.json();
     if (data.success) {
-      alert("Registrazione completata!");
+      alert("Registrazione completata! Ora puoi accedere.");
       toggleAuthMode('login');
     } else alert("Errore Registrazione: " + data.error);
   });
@@ -190,7 +193,7 @@
 
     if (currentUser.role === 'sitter') {
       document.getElementById('sitterSection').classList.remove('hidden');
-      caricaI MieiSlot();
+      caricaIMieiSlot();
     } else {
       document.getElementById('familySection').classList.remove('hidden');
       caricaDisponibilita();
@@ -198,8 +201,8 @@
     caricaPrenotazioni();
   }
 
-  // Carica gli slot pubblicati dalla Babysitter collegata
-  async function caricaI MieiSlot() {
+  // Carica gli slot pubblicati dalla Babysitter
+  async function caricaIMieiSlot() {
     const container = document.getElementById('mySlotsContainer');
     try {
       const res = await fetch(`/api/slots?sitter_id=${currentUser.id}`);
@@ -212,7 +215,7 @@
               <strong>Data: ${slot.slot_date}</strong> (${slot.time_slot})<br>
               Tariffa: €${slot.hourly_rate}/ora
             </div>
-            <span class="badge badge-${slot.status === 'open' ? 'open' : 'confirmed'}">${slot.status}</span>
+            <span class="badge badge-${slot.status}">${slot.status}</span>
           </div>
         `).join('');
       } else {
@@ -267,7 +270,7 @@
     if (data.success) {
       alert("Disponibilità pubblicata con successo!");
       document.getElementById('addSlotForm').reset();
-      caricaI MieiSlot(); // Aggiorna la lista degli slot in pagina
+      caricaIMieiSlot();
     } else {
       alert("Errore inserimento: " + data.error);
     }
@@ -299,6 +302,13 @@
             `;
           }
 
+          let azioniStripe = '';
+          if (currentUser.role === 'family' && b.status === 'confirmed') {
+            azioniStripe = `
+              <button class="btn-stripe" onclick="pagaStripe('${b.id}', '${b.sitter?.full_name || 'Babysitter'}', 10)">Paga Caparra (€10)</button>
+            `;
+          }
+
           return `
             <div class="booking-item" style="flex-direction: column; align-items: flex-start;">
               <div style="display: flex; justify-content: space-between; width: 100%;">
@@ -310,6 +320,7 @@
                 Telefono: ${telefono || 'N/D'} ${b.notes ? `<br><em>Note: ${b.notes}</em>` : ''}
               </div>
               ${azioniSitter}
+              ${azioniStripe}
             </div>
           `;
         }).join('');
@@ -331,13 +342,38 @@
     const data = await res.json();
     if (data.success) {
       caricaPrenotazioni();
-      if (currentUser.role === 'sitter') caricaI MieiSlot();
+      if (currentUser.role === 'sitter') caricaIMieiSlot();
     } else {
       alert("Errore: " + data.error);
     }
   }
 
-  // Famiglia richiede Prenotazione
+  // Pagamento tramite Stripe Checkout
+  async function pagaStripe(bookingId, sitterName, amountEur) {
+    try {
+      const res = await fetch('/api/payments/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          booking_id: bookingId,
+          amount_eur: amountEur,
+          sitter_name: sitterName
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        window.location.href = data.url;
+      } else if (data.offline) {
+        alert(data.message);
+      } else {
+        alert("Errore durante l'avvio del pagamento: " + data.error);
+      }
+    } catch (err) {
+      alert("Errore di connessione con il server per il pagamento.");
+    }
+  }
+
+  // Richiesta Prenotazione da Famiglia
   async function prenotaSlot(slotId, sitterId, sitterPhone, bookingDate) {
     const notes = prompt("Note per la babysitter (opzionale):");
     const res = await fetch('/api/bookings/request', {
@@ -363,6 +399,39 @@
       alert("Errore prenotazione: " + data.error);
     }
   }
+
+  // Richiedi reset password via email
+  async function richiediResetPassword() {
+    const email = prompt("Inserisci la tua email per ricevere il link di reset:");
+    if (!email) return;
+
+    const res = await fetch('/api/auth/reset-password-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (data.success) alert(data.message);
+    else alert("Errore: " + data.error);
+  }
+
+  // Aggiornamento password dopo link email
+  document.getElementById('updatePasswordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const newPassword = document.getElementById('newPassword').value;
+
+    if (!supabaseClient) return alert("Supabase non ancora pronto.");
+
+    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+    if (!error) {
+      alert("Password aggiornata con successo! Ora puoi effettuare il login.");
+      window.location.hash = '';
+      document.getElementById('resetPasswordSection').classList.add('hidden');
+      document.getElementById('authSection').classList.remove('hidden');
+    } else {
+      alert("Errore durante l'aggiornamento: " + error.message);
+    }
+  });
 
   function logout() {
     currentUser = null;
