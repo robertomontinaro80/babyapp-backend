@@ -151,22 +151,14 @@ app.post('/api/auth/login', async (req, res) => {
 // GET: Recupera gli slot aperti (per le Famiglie) oppure tutti gli slot di una specifica Babysitter
 app.get('/api/slots', async (req, res) => {
   const { sitter_id } = req.query;
-
   try {
-    let query = supabase.from('slots').select('*, users(full_name, phone)');
-
+    let query = supabase.from('slots').select('*');
     if (sitter_id) {
-      // Se viene passato sitter_id (sezione Babysitter), mostra TUTTI i suoi slot
       query = query.eq('sitter_id', sitter_id);
-    } else {
-      // Se NON viene passato sitter_id (sezione Famiglie), mostra solo quelli prenotabili ('open' o 'available')
-      query = query.or('status.eq.open,status.eq.available,status.is.null');
     }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
+    const { data, error } = await query;
     if (error) throw error;
-    res.status(200).json({ success: true, data });
+    res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
