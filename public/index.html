@@ -266,33 +266,35 @@
   }
 
   // Babysitter crea nuova disponibilità
-  document.getElementById('addSlotForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  // Babysitter crea nuova disponibilità
+document.getElementById('addSlotForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
 
-    try {
-      const res = await fetch('/api/slots', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sitter_id: currentUser.id,
-          slot_date: document.getElementById('slotDate').value,
-          time_slot: document.getElementById('slotTime').value,
-          hourly_rate: document.getElementById('slotRate').value
-        })
-      });
+  try {
+    const res = await fetch('/api/slots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sitter_id: currentUser.id,
+        slot_date: document.getElementById('slotDate').value,
+        time_slot: document.getElementById('slotTime').value,
+        hourly_rate: document.getElementById('slotRate').value,
+        status: 'open' // Impostiamo esplicitamente 'open' per evitare ambiguita
+      })
+    });
 
-      const data = await res.json();
-      if (data.success) {
-        alert("Disponibilità pubblicata con successo!");
-        document.getElementById('addSlotForm').reset();
-        caricaIMieiSlot();
-      } else {
-        alert("Errore inserimento: " + data.error);
-      }
-    } catch (err) {
-      alert("Errore di connessione durante la creazione dello slot.");
+    const data = await res.json();
+    if (data.success) {
+      alert("Disponibilità pubblicata con successo!");
+      document.getElementById('addSlotForm').reset();
+      await caricaIMieiSlot(); // Ricarica la lista degli slot pubblicati
+    } else {
+      alert("Errore inserimento: " + data.error);
     }
-  });
+  } catch (err) {
+    alert("Errore di connessione durante la creazione dello slot.");
+  }
+});
 
   // Carica il riepilogo delle prenotazioni
   async function caricaPrenotazioni() {

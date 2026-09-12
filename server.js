@@ -152,28 +152,24 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/slots', async (req, res) => {
   const { sitter_id } = req.query;
 
-  let query = supabase.from('slots').select(`
-    id,
-    slot_date,
-    time_slot,
-    hourly_rate,
-    status,
-    sitter_id,
-    users ( full_name, phone )
-  `);
+  try {
+    let query = supabase.from('slots').select('*, users(full_name, phone)');
 
-  if (sitter_id) {
-    // Se passato sitter_id, mostra tutti gli slot di quella babysitter
-    query = query.eq('sitter_id', sitter_id);
-  } else {
-    // Altrimenti mostra solo gli slot aperti per le famiglie
-    query = query.eq('status', 'open');
+    if (sitter_id) {
+      // Se viene passato sitter_id (sezione Babysitter), mostra TUTTI i suoi slot
+      query = query.eq('sitter_id', sitter_id);
+    } else {
+      // Se NON viene passato sitter_id (sezione Famiglie), mostra solo quelli prenotabili ('open' o 'available')
+      query = query.or('status.eq.open,status.eq.available,status.is.null');
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
-
-  const { data, error } = await query.order('slot_date', { ascending: true });
-
-  if (error) return res.status(500).json({ success: false, error: error.message });
-  res.json({ success: true, data });
 });
 
 // POST: Aggiungi un nuovo slot (Babysitter)
