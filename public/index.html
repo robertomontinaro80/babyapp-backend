@@ -269,7 +269,21 @@
     }
 
     try {
-      // Aggiorna l'utente usando la sessione di ripristino catturata dall'URL
+      // Estrae i token dall'URL (#access_token=...&refresh_token=...)
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+
+      // Imposta esplicitamente la sessione prima di aggiornare l'utente
+      if (accessToken) {
+        const { error: sessionError } = await supabaseClient.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || ''
+        });
+        if (sessionError) throw sessionError;
+      }
+
+      // Aggiorna la password dell'utente
       const { data, error } = await supabaseClient.auth.updateUser({
         password: newPassword
       });
@@ -282,7 +296,7 @@
         window.location.href = '/';
       }
     } catch (err) {
-      alert("Errore durante l'aggiornamento della password.");
+      alert("Errore durante l'aggiornamento della password: " + err.message);
     }
   });
 

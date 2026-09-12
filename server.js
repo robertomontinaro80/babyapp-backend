@@ -285,30 +285,30 @@ app.post('/api/auth/reset-password-request', async (req, res) => {
 });
 
 // 2. Impostazione della nuova password
-app.post('/api/auth/update-password', async (req, res) => {
-  const { new_password, access_token } = req.body;
+// app.post('/api/auth/update-password', async (req, res) => {
+//   const { new_password, access_token } = req.body;
 
-  try {
-    // Imposta la sessione dell'utente usando il token inviato da Supabase via email
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token,
-      refresh_token: '', // Non necessario per l'aggiornamento password
-    });
+//   try {
+//     // Imposta la sessione dell'utente usando il token inviato da Supabase via email
+//     const { error: sessionError } = await supabase.auth.setSession({
+//       access_token,
+//       refresh_token: '', // Non necessario per l'aggiornamento password
+//     });
 
-    if (sessionError) throw sessionError;
+//     if (sessionError) throw sessionError;
 
-    // Aggiorna la password
-    const { error } = await supabase.auth.updateUser({
-      password: new_password
-    });
+//     // Aggiorna la password
+//     const { error } = await supabase.auth.updateUser({
+//       password: new_password
+//     });
 
-    if (error) throw error;
+//     if (error) throw error;
 
-    res.json({ success: true, message: "Password aggiornata con successo!" });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
-  }
-});
+//     res.json({ success: true, message: "Password aggiornata con successo!" });
+//   } catch (err) {
+//     res.status(400).json({ success: false, error: err.message });
+//   }
+// });
 
 // Endpoint per passare la configurazione pubblica al Frontend
 app.get('/api/config', (req, res) => {
