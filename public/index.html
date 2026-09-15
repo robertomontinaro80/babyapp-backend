@@ -212,7 +212,6 @@
     caricaPrenotazioni();
   }
 
-  // Carica gli slot pubblicati dalla Babysitter con azioni Modifica ed Elimina
   async function caricaIMieiSlot() {
     const container = document.getElementById('mySlotsContainer');
     try {
@@ -255,7 +254,6 @@
     }
   }
 
-  // Modifica uno slot via prompt
   async function modificaSlot(slotId, currentDate, currentTime, currentRate) {
     const newDate = prompt("Nuova Data (YYYY-MM-DD):", currentDate);
     if (!newDate) return;
@@ -289,7 +287,6 @@
     }
   }
 
-  // Elimina uno slot
   async function eliminaSlot(slotId) {
     if (!confirm("Sei sicuro di voler eliminare questo slot?")) return;
 
@@ -308,7 +305,6 @@
     }
   }
 
-  // Carica le disponibilità aperte per la Famiglia
   async function caricaDisponibilita() {
     const container = document.getElementById('slotsContainer');
     try {
@@ -334,7 +330,6 @@
     }
   }
 
-  // Babysitter crea nuova disponibilità
   document.getElementById('addSlotForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -364,7 +359,6 @@
     }
   });
 
-  // Carica il riepilogo delle prenotazioni
   async function caricaPrenotazioni() {
     const container = document.getElementById('bookingsContainer');
     try {
@@ -420,7 +414,6 @@
     }
   }
 
-  // Rispondi a una prenotazione (Accetta / Rifiuta)
   async function rispondiPrenotazione(bookingId, status) {
     try {
       const res = await fetch('/api/bookings/respond', {
@@ -440,7 +433,6 @@
     }
   }
 
-  // Pagamento tramite Stripe Checkout
   async function pagaStripe(bookingId, sitterName, amountEur) {
     try {
       const res = await fetch('/api/payments/create-checkout-session', {
@@ -465,7 +457,6 @@
     }
   }
 
-  // Richiesta Prenotazione da Famiglia
   async function prenotaSlot(slotId, sitterId, sitterPhone, bookingDate) {
     const notes = prompt("Note per la babysitter (opzionale):");
     try {
@@ -496,7 +487,6 @@
     }
   }
 
-  // Richiedi reset password via email
   async function richiediResetPassword() {
     const email = prompt("Inserisci la tua email per ricevere il link di reset:");
     if (!email) return;
@@ -515,7 +505,6 @@
     }
   }
 
-  // Aggiornamento password dopo link email
   document.getElementById('updatePasswordForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const newPassword = document.getElementById('newPassword').value;

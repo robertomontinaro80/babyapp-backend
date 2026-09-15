@@ -18,6 +18,21 @@ const twilioClient = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
+// Helper function per l'invio sicuro di Notifiche via Twilio (SMS / WhatsApp)
+async function sendTwilioNotification(toPhone, messageBody) {
+  if (!twilioClient || !toPhone) return;
+  try {
+    await twilioClient.messages.create({
+      body: messageBody,
+      from: process.env.TWILIO_PHONE_NUMBER, // Se usi WhatsApp Sandbox es. 'whatsapp:+14155238886'
+      to: toPhone
+    });
+    console.log(`[Twilio Notifica Inviata] -> ${toPhone}`);
+  } catch (err) {
+    console.error(`[Twilio Errore] -> Impossibile inviare a ${toPhone}:`, err.message);
+  }
+}
+
 // 3. Stripe (Opzionale)
 const stripe = process.env.STRIPE_SECRET_KEY
   ? require('stripe')(process.env.STRIPE_SECRET_KEY)
@@ -288,7 +303,7 @@ app.delete('/api/slots/:id', async (req, res) => {
 });
 
 /* ==========================================================================
-   PRENOTAZIONI & NOTIFICHE SMS
+   PRENOTAZIONI & NOTIFICHE SMS/WHATSAPP
    ========================================================================== */
 
 // 1. Recupera prenotazioni per l'utente (Babysitter o Famiglia)
@@ -338,17 +353,10 @@ app.post('/api/bookings/request', async (req, res) => {
       .update({ status: 'pending' })
       .eq('id', slot_id);
 
-    if (twilioClient && sitter_phone) {
-      try {
-        await twilioClient.messages.create({
-          body: `BabyApp: La famiglia ${family_name || 'una famiglia'} ti ha richiesto la disponibilità per il giorno ${booking_date}. Accedi per rispondere!`,
-          from: process.env.TWILIO_PHONE_NUMBER,
-          to: sitter_phone
-        });
-        console.log(`SMS inviato a ${sitter_phone}`);
-      } catch (smsError) {
-        console.error("Errore invio SMS:", smsError.message);
-      }
+    // Notifica via Twilio alla Babysitter
+    if (sitter_phone) {
+      const msg = `BabyApp: La famiglia ${family_name || 'una famiglia'} ti ha richiesto la disponibilità per il giorno ${booking_date}. Accedi all'app per rispondere!`;
+      await sendTwilioNotification(sitter_phone, msg);
     }
 
     res.status(200).json({ success: true, booking, message: "Prenotazione inviata!" });
@@ -366,11 +374,16 @@ app.post('/api/bookings/respond', async (req, res) => {
   }
 
   try {
+    // Recupera anche i dettagli della Famiglia per poter inviare la notifica
     const { data: booking, error } = await supabase
       .from('bookings')
       .update({ status })
       .eq('id', booking_id)
-      .select()
+      .select(`
+        *,
+        family:users!bookings_family_id_fkey ( full_name, phone ),
+        sitter:users!bookings_sitter_id_fkey ( full_name )
+      `)
       .single();
 
     if (error) return res.status(500).json({ success: false, error: error.message });
@@ -381,6 +394,14 @@ app.post('/api/bookings/respond', async (req, res) => {
         .from('slots')
         .update({ status: newSlotStatus })
         .eq('id', booking.slot_id);
+    }
+
+    // Notifica via Twilio alla Famiglia sull'esito della richiesta
+    if (booking && booking.family && booking.family.phone) {
+      const sitterName = booking.sitter?.full_name || 'La Babysitter';
+      const esitoText = status === 'confirmed' ? 'ha ACCETTATO' : 'ha RIFIUTATO';
+      const msg = `BabyApp: ${sitterName} ${esitoText} la tua richiesta di prenotazione per il ${booking.booking_date}.`;
+      await sendTwilioNotification(booking.family.phone, msg);
     }
 
     res.json({ success: true, message: `Prenotazione ${status === 'confirmed' ? 'accettata' : 'rifiutata'}.` });
