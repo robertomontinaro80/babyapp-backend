@@ -199,7 +199,6 @@
     document.getElementById('userName').innerText = currentUser.full_name || 'Utente';
     document.getElementById('userRole').innerText = currentUser.role || '';
 
-    // Ripulisci la visibilità delle sezioni prima di mostrare quella corretta
     document.getElementById('sitterSection').classList.add('hidden');
     document.getElementById('familySection').classList.add('hidden');
 
@@ -213,7 +212,7 @@
     caricaPrenotazioni();
   }
 
-  // Carica gli slot pubblicati dalla Babysitter
+  // Carica gli slot pubblicati dalla Babysitter con azioni Modifica ed Elimina
   async function caricaIMieiSlot() {
     const container = document.getElementById('mySlotsContainer');
     try {
@@ -221,21 +220,91 @@
       const result = await res.json();
 
       if (result.success && result.data && result.data.length > 0) {
-        container.innerHTML = result.data.map(slot => `
-          <div class="slot-item">
-            <div>
-              <strong>Data: ${slot.slot_date}</strong> (${slot.time_slot})<br>
-              Tariffa: €${slot.hourly_rate}/ora
+        container.innerHTML = result.data.map(slot => {
+          const isModificabile = (slot.status === 'open' || slot.status === 'available' || !slot.status);
+          
+          let pulsantiAzioni = '';
+          if (isModificabile) {
+            pulsantiAzioni = `
+              <div style="margin-top: 8px;">
+                <button class="btn-success" style="padding: 4px 10px; font-size: 12px;" onclick="modificaSlot('${slot.id}', '${slot.slot_date}', '${slot.time_slot}', '${slot.hourly_rate}')">Modifica</button>
+                <button class="btn-danger" style="padding: 4px 10px; font-size: 12px;" onclick="eliminaSlot('${slot.id}')">Elimina</button>
+              </div>
+            `;
+          }
+
+          return `
+            <div class="slot-item" style="flex-direction: column; align-items: flex-start;">
+              <div style="display: flex; justify-content: space-between; width: 100%;">
+                <div>
+                  <strong>Data: ${slot.slot_date}</strong> (${slot.time_slot})<br>
+                  Tariffa: €${slot.hourly_rate}/ora
+                </div>
+                <span class="badge badge-${slot.status || 'open'}">${slot.status || 'open'}</span>
+              </div>
+              ${pulsantiAzioni}
             </div>
-            <span class="badge badge-${slot.status || 'open'}">${slot.status || 'open'}</span>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       } else {
         container.innerHTML = '<p>Non hai ancora inserito alcuna disponibilità.</p>';
       }
     } catch (err) {
       console.error(err);
       container.innerHTML = '<p>Errore durante il caricamento dei tuoi slot.</p>';
+    }
+  }
+
+  // Modifica uno slot via prompt
+  async function modificaSlot(slotId, currentDate, currentTime, currentRate) {
+    const newDate = prompt("Nuova Data (YYYY-MM-DD):", currentDate);
+    if (!newDate) return;
+
+    const newTime = prompt("Nuova Fascia Oraria:", currentTime);
+    if (!newTime) return;
+
+    const newRate = prompt("Nuova Tariffa Oraria (€):", currentRate);
+    if (!newRate) return;
+
+    try {
+      const res = await fetch(`/api/slots/${slotId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slot_date: newDate,
+          time_slot: newTime,
+          hourly_rate: parseFloat(newRate)
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert("Slot aggiornato con successo!");
+        caricaIMieiSlot();
+      } else {
+        alert("Errore aggiornamento: " + data.error);
+      }
+    } catch (err) {
+      alert("Errore di connessione.");
+    }
+  }
+
+  // Elimina uno slot
+  async function eliminaSlot(slotId) {
+    if (!confirm("Sei sicuro di voler eliminare questo slot?")) return;
+
+    try {
+      const res = await fetch(`/api/slots/${slotId}`, { method: 'DELETE' });
+      const data = await res.json();
+
+      if (data.success) {
+        alert("Slot eliminato con successo!");
+        caricaIMieiSlot();
+      } else {
+        alert("Errore eliminazione: " + data.error);
+      }
+    } catch (err) {
+      alert("Errore di connessione.");
     }
   }
 
@@ -266,35 +335,34 @@
   }
 
   // Babysitter crea nuova disponibilità
-  // Babysitter crea nuova disponibilità
-document.getElementById('addSlotForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
+  document.getElementById('addSlotForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-  try {
-    const res = await fetch('/api/slots', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sitter_id: currentUser.id,
-        slot_date: document.getElementById('slotDate').value,
-        time_slot: document.getElementById('slotTime').value,
-        hourly_rate: document.getElementById('slotRate').value,
-        status: 'open' // Impostiamo esplicitamente 'open' per evitare ambiguita
-      })
-    });
+    try {
+      const res = await fetch('/api/slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sitter_id: currentUser.id,
+          slot_date: document.getElementById('slotDate').value,
+          time_slot: document.getElementById('slotTime').value,
+          hourly_rate: document.getElementById('slotRate').value,
+          status: 'open'
+        })
+      });
 
-    const data = await res.json();
-    if (data.success) {
-      alert("Disponibilità pubblicata con successo!");
-      document.getElementById('addSlotForm').reset();
-      await caricaIMieiSlot(); // Ricarica la lista degli slot pubblicati
-    } else {
-      alert("Errore inserimento: " + data.error);
+      const data = await res.json();
+      if (data.success) {
+        alert("Disponibilità pubblicata con successo!");
+        document.getElementById('addSlotForm').reset();
+        await caricaIMieiSlot();
+      } else {
+        alert("Errore inserimento: " + data.error);
+      }
+    } catch (err) {
+      alert("Errore di connessione durante la creazione dello slot.");
     }
-  } catch (err) {
-    alert("Errore di connessione durante la creazione dello slot.");
-  }
-});
+  });
 
   // Carica il riepilogo delle prenotazioni
   async function caricaPrenotazioni() {

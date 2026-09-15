@@ -153,13 +153,25 @@ app.get('/api/slots', async (req, res) => {
   const { sitter_id } = req.query;
 
   try {
-    let query = supabase.from('slots').select('*');
+    let query = supabase.from('slots').select(`
+      id,
+      slot_date,
+      time_slot,
+      hourly_rate,
+      status,
+      sitter_id,
+      created_at,
+      users ( full_name, phone )
+    `);
 
     if (sitter_id) {
       query = query.eq('sitter_id', sitter_id);
+    } else {
+      query = query.or('status.eq.open,status.eq.available,status.eq.AVAILABLE,status.is.null');
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.order('created_at', { ascending: false });
+
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
@@ -183,7 +195,7 @@ app.post('/api/slots', async (req, res) => {
           sitter_id,
           slot_date,
           time_slot,
-          hourly_rate: parseFloat(hourly_rate), // Converte in numero
+          hourly_rate: parseFloat(hourly_rate),
           status: 'open'
         }
       ])
@@ -198,6 +210,80 @@ app.post('/api/slots', async (req, res) => {
   } catch (err) {
     console.error("Errore server:", err);
     res.json({ success: false, error: 'Errore interno del server.' });
+  }
+});
+
+// PUT: Modifica un'esistente disponibilità (Babysitter)
+app.put('/api/slots/:id', async (req, res) => {
+  const { id } = req.params;
+  const { slot_date, time_slot, hourly_rate } = req.body;
+
+  try {
+    const { data: slot, error: fetchError } = await supabase
+      .from('slots')
+      .select('status')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !slot) {
+      return res.status(404).json({ success: false, error: 'Slot non trovato.' });
+    }
+
+    if (slot.status === 'booked' || slot.status === 'pending') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Impossibile modificare uno slot con prenotazioni in corso o confermate.' 
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('slots')
+      .update({
+        slot_date,
+        time_slot,
+        hourly_rate: parseFloat(hourly_rate)
+      })
+      .eq('id', id)
+      .select();
+
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE: Elimina uno slot libero (Babysitter)
+app.delete('/api/slots/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data: slot, error: fetchError } = await supabase
+      .from('slots')
+      .select('status')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !slot) {
+      return res.status(404).json({ success: false, error: 'Slot non trovato.' });
+    }
+
+    if (slot.status === 'booked' || slot.status === 'pending') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Impossibile eliminare uno slot con prenotazioni in corso o confermate.' 
+      });
+    }
+
+    const { error } = await supabase
+      .from('slots')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true, message: 'Slot eliminato con successo.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -239,7 +325,6 @@ app.post('/api/bookings/request', async (req, res) => {
   const { slot_id, family_id, sitter_id, notes, sitter_phone, family_name, booking_date } = req.body;
 
   try {
-    // Salva prenotazione nello stato 'pending'
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .insert([{ slot_id, family_id, sitter_id, booking_date, notes, status: 'pending' }])
@@ -248,13 +333,11 @@ app.post('/api/bookings/request', async (req, res) => {
 
     if (bookingError) throw bookingError;
 
-    // Aggiorna stato slot in 'pending' o lascia 'open'
     await supabase
       .from('slots')
       .update({ status: 'pending' })
       .eq('id', slot_id);
 
-    // Invio SMS se Twilio è attivo
     if (twilioClient && sitter_phone) {
       try {
         await twilioClient.messages.create({
@@ -276,7 +359,7 @@ app.post('/api/bookings/request', async (req, res) => {
 
 // 3. La Babysitter Accetta o Rifiuta una prenotazione
 app.post('/api/bookings/respond', async (req, res) => {
-  const { booking_id, status } = req.body; // status: 'confirmed' o 'rejected'
+  const { booking_id, status } = req.body;
 
   if (!['confirmed', 'rejected'].includes(status)) {
     return res.status(400).json({ success: false, error: 'Stato non valido.' });
@@ -292,7 +375,6 @@ app.post('/api/bookings/respond', async (req, res) => {
 
     if (error) return res.status(500).json({ success: false, error: error.message });
 
-    // Se la prenotazione viene confermata o rifiutata, aggiorniamo lo stato dello slot associato
     if (booking && booking.slot_id) {
       const newSlotStatus = status === 'confirmed' ? 'booked' : 'open';
       await supabase
@@ -354,7 +436,6 @@ app.post('/api/payments/create-checkout-session', async (req, res) => {
    RECUPERO E RESET PASSWORD & CONFIG
    ========================================================================== */
 
-// Richiesta invio email di reset
 app.post('/api/auth/reset-password-request', async (req, res) => {
   const { email } = req.body;
   const clientUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
@@ -372,7 +453,6 @@ app.post('/api/auth/reset-password-request', async (req, res) => {
   }
 });
 
-// Endpoint per passare la configurazione pubblica al Frontend
 app.get('/api/config', (req, res) => {
   res.json({
     supabaseUrl: process.env.SUPABASE_URL,
