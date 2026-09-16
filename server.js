@@ -24,7 +24,7 @@ async function sendTwilioNotification(toPhone, messageBody) {
   try {
     await twilioClient.messages.create({
       body: messageBody,
-      from: process.env.TWILIO_PHONE_NUMBER, // Se usi WhatsApp Sandbox es. 'whatsapp:+14155238886'
+      from: process.env.TWILIO_PHONE_NUMBER,
       to: toPhone
     });
     console.log(`[Twilio Notifica Inviata] -> ${toPhone}`);
@@ -58,31 +58,54 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
+  // Gestione dell'evento Pagamento Completato
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
     const bookingId = session.metadata.booking_id;
 
-    // Aggiorna lo stato della prenotazione a "confirmed"
-    await supabase
-      .from('bookings')
-      .update({ status: 'confirmed' })
-      .eq('id', bookingId);
+    try {
+      // 1. Aggiorna lo stato della prenotazione a "paid"
+      const { data: booking, error: bookingErr } = await supabase
+        .from('bookings')
+        .update({ status: 'paid' })
+        .eq('id', bookingId)
+        .select(`
+          *,
+          family:users!bookings_family_id_fkey ( full_name, phone ),
+          sitter:users!bookings_sitter_id_fkey ( full_name, phone )
+        `)
+        .single();
 
-    const { data: booking } = await supabase
-      .from('bookings')
-      .select('slot_id')
-      .eq('id', bookingId)
-      .single();
+      if (bookingErr) throw bookingErr;
 
-    if (booking && booking.slot_id) {
-      // Aggiorna la tabella "slots" a "booked"
-      await supabase
-        .from('slots')
-        .update({ status: 'booked' })
-        .eq('id', booking.slot_id);
+      // 2. Aggiorna lo stato dello slot collegato a "booked"
+      if (booking && booking.slot_id) {
+        await supabase
+          .from('slots')
+          .update({ status: 'booked' })
+          .eq('id', booking.slot_id);
+      }
+
+      // 3. Invia notifiche SMS di avvenuto pagamento a entrambi gli utenti
+      if (booking) {
+        if (booking.family?.phone) {
+          await sendTwilioNotification(
+            booking.family.phone,
+            `BabyApp: Pagamento della caparra confermato! La tua prenotazione con ${booking.sitter?.full_name || 'la babysitter'} per il ${booking.booking_date} è ufficialmente confermata.`
+          );
+        }
+        if (booking.sitter?.phone) {
+          await sendTwilioNotification(
+            booking.sitter.phone,
+            `BabyApp: La famiglia ${booking.family?.full_name || ''} ha versato la caparra. Il servizio per il ${booking.booking_date} è confermato!`
+          );
+        }
+      }
+
+      console.log(`Prenotazione ${bookingId} confermata e pagata con successo via Stripe!`);
+    } catch (err) {
+      console.error(`Errore durante aggiornamento DB da Webhook: ${err.message}`);
     }
-
-    console.log(`Prenotazione ${bookingId} confermata con successo via Stripe!`);
   }
 
   res.json({ received: true });
@@ -353,7 +376,6 @@ app.post('/api/bookings/request', async (req, res) => {
       .update({ status: 'pending' })
       .eq('id', slot_id);
 
-    // Notifica via Twilio alla Babysitter
     if (sitter_phone) {
       const msg = `BabyApp: La famiglia ${family_name || 'una famiglia'} ti ha richiesto la disponibilità per il giorno ${booking_date}. Accedi all'app per rispondere!`;
       await sendTwilioNotification(sitter_phone, msg);
@@ -374,7 +396,6 @@ app.post('/api/bookings/respond', async (req, res) => {
   }
 
   try {
-    // Recupera anche i dettagli della Famiglia per poter inviare la notifica
     const { data: booking, error } = await supabase
       .from('bookings')
       .update({ status })
@@ -396,7 +417,6 @@ app.post('/api/bookings/respond', async (req, res) => {
         .eq('id', booking.slot_id);
     }
 
-    // Notifica via Twilio alla Famiglia sull'esito della richiesta
     if (booking && booking.family && booking.family.phone) {
       const sitterName = booking.sitter?.full_name || 'La Babysitter';
       const esitoText = status === 'confirmed' ? 'ha ACCETTATO' : 'ha RIFIUTATO';
@@ -442,8 +462,8 @@ app.post('/api/payments/create-checkout-session', async (req, res) => {
         },
       ],
       mode: 'payment',
-      success_url: `${clientUrl}/success.html?booking_id=${booking_id}`,
-      cancel_url: `${clientUrl}/cancel.html`,
+      success_url: `${clientUrl}/?payment=success&booking_id=${booking_id}`,
+      cancel_url: `${clientUrl}/?payment=cancel`,
       metadata: { booking_id },
     });
 

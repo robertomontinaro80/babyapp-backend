@@ -27,16 +27,23 @@
     .slot-item, .booking-item { border-left: 4px solid #3498db; background: #f8f9fa; padding: 15px; margin-bottom: 10px; border-radius: 0 5px 5px 0; display: flex; justify-content: space-between; align-items: center; }
     .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
     .badge-pending, .badge-requested { background: #f1c40f; color: #fff; }
-    .badge-confirmed, .badge-accepted { background: #2ecc71; color: #fff; }
+    .badge-confirmed, .badge-accepted { background: #3498db; color: #fff; }
+    .badge-paid { background: #2ecc71; color: #fff; }
     .badge-rejected { background: #e74c3c; color: #fff; }
     .badge-open { background: #3498db; color: #fff; }
     .badge-booked { background: #9b59b6; color: #fff; }
+    .alert-box { padding: 15px; border-radius: 5px; margin-bottom: 20px; text-align: center; font-weight: bold; }
+    .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .alert-danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
 <div class="container">
+
+  <!-- BANNER NOTIFICA ESITO PAGAMENTO -->
+  <div id="paymentStatusBanner" class="alert-box hidden"></div>
 
   <!-- SEZIONE AUTENTICAZIONE -->
   <div id="authSection" class="card">
@@ -134,8 +141,27 @@
     }
   }
 
+  // Gestione esito ritorno da Stripe Checkout
+  function checkPaymentQueryParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const payment = urlParams.get('payment');
+    const banner = document.getElementById('paymentStatusBanner');
+
+    if (payment === 'success') {
+      banner.className = 'alert-box alert-success';
+      banner.innerText = 'Pagamento completato con successo! La tua prenotazione è confermata.';
+      banner.classList.remove('hidden');
+    } else if (payment === 'cancel') {
+      banner.className = 'alert-box alert-danger';
+      banner.innerText = 'Il pagamento è stato annullato. Puoi riprovare quando preferisci.';
+      banner.classList.remove('hidden');
+    }
+  }
+
   window.addEventListener('DOMContentLoaded', async () => {
     await initSupabase();
+    checkPaymentQueryParams();
+
     if (window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('type=recovery'))) {
       document.getElementById('authSection').classList.add('hidden');
       document.getElementById('resetPasswordSection').classList.remove('hidden');
