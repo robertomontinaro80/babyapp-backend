@@ -45,8 +45,6 @@ app.post(
   '/api/webhooks/stripe',
   express.raw({ type: 'application/json' }),
   async (req, res) => {
-    console.log('Signature ricevuta:', req.headers['stripe-signature'] ? 'OK' : 'MANCANTE');
-    console.log('Tipo Body:', Buffer.isBuffer(req.body) ? 'Buffer OK' : typeof req.body);
     if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
       return res.status(400).send('Stripe non configurato.');
     }
