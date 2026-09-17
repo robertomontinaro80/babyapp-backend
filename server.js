@@ -61,13 +61,18 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
   // Gestione dell'evento Pagamento Completato
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
-    const bookingId = session.metadata.booking_id;
+    const bookingId = session.metadata?.booking_id;
+
+    if (!bookingId) {
+      console.error('Webhook Errore: booking_id mancante nei metadata della sessione');
+      return res.json({ received: true });
+    }
 
     try {
-      // 1. Aggiorna lo stato della prenotazione a "paid"
+      // 1. Aggiorna lo stato della prenotazione a "confirmed" (rispetta il check constraint di Supabase)
       const { data: booking, error: bookingErr } = await supabase
         .from('bookings')
-        .update({ status: 'paid' })
+        .update({ status: 'confirmed' })
         .eq('id', bookingId)
         .select(`
           *,
