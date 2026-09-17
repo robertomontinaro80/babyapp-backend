@@ -39,9 +39,23 @@ const stripe = process.env.STRIPE_SECRET_KEY
   : null;
 
 /* ==========================================================================
-   WEBHOOK STRIPE (Deve stare PRIMA di express.json())
+   MIDDLEWARE PARSER & BUFFER RAW PER STRIPE
    ========================================================================== */
-app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+
+// Intercetta il Buffer grezzo originario per il Webhook di Stripe prima che il JSON venga parsato
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+
+app.use(cors());
+app.use(express.static('public'));
+
+/* ==========================================================================
+   WEBHOOK STRIPE
+   ========================================================================== */
+app.post('/api/webhooks/stripe', async (req, res) => {
   if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
     return res.status(400).send('Stripe non configurato.');
   }
@@ -52,7 +66,9 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    // Usa req.rawBody se presente, in alternativa req.body
+    const payload = req.rawBody || req.body;
+    event = stripe.webhooks.constructEvent(payload, sig, endpointSecret);
   } catch (err) {
     console.error(`Errore firma Webhook: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -64,7 +80,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
     const bookingId = session.metadata?.booking_id;
 
     if (!bookingId) {
-      console.error('Webhook Errore: booking_id mancante nei metadata della sessione');
+      console.error('Webhook Errore: booking_id mancante nei metadata');
       return res.json({ received: true });
     }
 
@@ -115,11 +131,6 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
 
   res.json({ received: true });
 });
-
-// Middleware standard per le altre rotte
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
 
 /* ==========================================================================
    ROTTE BASE & AUTENTICAZIONE
