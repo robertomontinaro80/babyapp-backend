@@ -39,98 +39,94 @@ const stripe = process.env.STRIPE_SECRET_KEY
   : null;
 
 /* ==========================================================================
-   MIDDLEWARE PARSER & BUFFER RAW PER STRIPE
+   WEBHOOK STRIPE (TASSATIVAMENTE PRIMA DI express.json())
    ========================================================================== */
-
-// Intercetta il Buffer grezzo originario per il Webhook di Stripe prima che il JSON venga parsato
-app.use(express.json({
-  verify: (req, res, buf) => {
-    req.rawBody = buf;
-  }
-}));
-
-app.use(cors());
-app.use(express.static('public'));
-
-/* ==========================================================================
-   WEBHOOK STRIPE
-   ========================================================================== */
-app.post('/api/webhooks/stripe', async (req, res) => {
-  if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
-    return res.status(400).send('Stripe non configurato.');
-  }
-
-  const sig = req.headers['stripe-signature'];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  let event;
-
-  try {
-    // Usa req.rawBody se presente, in alternativa req.body
-    const payload = req.rawBody || req.body;
-    event = stripe.webhooks.constructEvent(payload, sig, endpointSecret);
-  } catch (err) {
-    console.error(`Errore firma Webhook: ${err.message}`);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  // Gestione dell'evento Pagamento Completato
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const bookingId = session.metadata?.booking_id;
-
-    if (!bookingId) {
-      console.error('Webhook Errore: booking_id mancante nei metadata');
-      return res.json({ received: true });
+app.post(
+  '/api/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
+      return res.status(400).send('Stripe non configurato.');
     }
+
+    const sig = req.headers['stripe-signature'];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    let event;
 
     try {
-      // 1. Aggiorna lo stato della prenotazione a "confirmed" (rispetta il check constraint di Supabase)
-      const { data: booking, error: bookingErr } = await supabase
-        .from('bookings')
-        .update({ status: 'confirmed' })
-        .eq('id', bookingId)
-        .select(`
-          *,
-          family:users!bookings_family_id_fkey ( full_name, phone ),
-          sitter:users!bookings_sitter_id_fkey ( full_name, phone )
-        `)
-        .single();
-
-      if (bookingErr) throw bookingErr;
-
-      // 2. Aggiorna lo stato dello slot collegato a "booked"
-      if (booking && booking.slot_id) {
-        await supabase
-          .from('slots')
-          .update({ status: 'booked' })
-          .eq('id', booking.slot_id);
-      }
-
-      // 3. Invia notifiche SMS di avvenuto pagamento a entrambi gli utenti
-      if (booking) {
-        if (booking.family?.phone) {
-          await sendTwilioNotification(
-            booking.family.phone,
-            `BabyApp: Pagamento della caparra confermato! La tua prenotazione con ${booking.sitter?.full_name || 'la babysitter'} per il ${booking.booking_date} è ufficialmente confermata.`
-          );
-        }
-        if (booking.sitter?.phone) {
-          await sendTwilioNotification(
-            booking.sitter.phone,
-            `BabyApp: La famiglia ${booking.family?.full_name || ''} ha versato la caparra. Il servizio per il ${booking.booking_date} è confermato!`
-          );
-        }
-      }
-
-      console.log(`Prenotazione ${bookingId} confermata e pagata con successo via Stripe!`);
+      // req.body è il Buffer grezzo non alterato da express.json()
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
     } catch (err) {
-      console.error(`Errore durante aggiornamento DB da Webhook: ${err.message}`);
+      console.error(`Errore firma Webhook: ${err.message}`);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
     }
-  }
 
-  res.json({ received: true });
-});
+    // Gestione dell'evento Pagamento Completato
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const bookingId = session.metadata?.booking_id;
+
+      if (!bookingId) {
+        console.error('Webhook Errore: booking_id mancante nei metadata');
+        return res.json({ received: true });
+      }
+
+      try {
+        // 1. Aggiorna lo stato della prenotazione a "confirmed"
+        const { data: booking, error: bookingErr } = await supabase
+          .from('bookings')
+          .update({ status: 'confirmed' })
+          .eq('id', bookingId)
+          .select(`
+            *,
+            family:users!bookings_family_id_fkey ( full_name, phone ),
+            sitter:users!bookings_sitter_id_fkey ( full_name, phone )
+          `)
+          .single();
+
+        if (bookingErr) throw bookingErr;
+
+        // 2. Aggiorna lo stato dello slot collegato a "booked"
+        if (booking && booking.slot_id) {
+          await supabase
+            .from('slots')
+            .update({ status: 'booked' })
+            .eq('id', booking.slot_id);
+        }
+
+        // 3. Invia notifiche SMS di avvenuto pagamento a entrambi gli utenti
+        if (booking) {
+          if (booking.family?.phone) {
+            await sendTwilioNotification(
+              booking.family.phone,
+              `BabyApp: Pagamento della caparra confermato! La tua prenotazione con ${booking.sitter?.full_name || 'la babysitter'} per il ${booking.booking_date} è ufficialmente confermata.`
+            );
+          }
+          if (booking.sitter?.phone) {
+            await sendTwilioNotification(
+              booking.sitter.phone,
+              `BabyApp: La famiglia ${booking.family?.full_name || ''} ha versato la caparra. Il servizio per il ${booking.booking_date} è confermato!`
+            );
+          }
+        }
+
+        console.log(`Prenotazione ${bookingId} confermata e pagata con successo via Stripe!`);
+      } catch (err) {
+        console.error(`Errore durante aggiornamento DB da Webhook: ${err.message}`);
+      }
+    }
+
+    res.json({ received: true });
+  }
+);
+
+/* ==========================================================================
+   MIDDLEWARE GLOBALI (ESECUTI SOLO DOPO LA ROTTA WEBHOOK)
+   ========================================================================== */
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
 
 /* ==========================================================================
    ROTTE BASE & AUTENTICAZIONE
