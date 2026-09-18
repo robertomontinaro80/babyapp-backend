@@ -149,7 +149,7 @@
 
     if (payment === 'success') {
       banner.className = 'alert-box alert-success';
-      banner.innerText = 'Pagamento completato con successo! La tua prenotazione è confermata.';
+      banner.innerText = 'Pagamento completato con successo! La tua prenotazione è confermata e saldata.';
       banner.classList.remove('hidden');
     } else if (payment === 'cancel') {
       banner.className = 'alert-box alert-danger';
@@ -395,6 +395,7 @@
         container.innerHTML = result.data.map(b => {
           const altroUtente = currentUser.role === 'sitter' ? b.family?.full_name : b.sitter?.full_name;
           const telefono = currentUser.role === 'sitter' ? b.family?.phone : b.sitter?.phone;
+          const rate = b.slots?.hourly_rate || 0;
           
           let statusLabel = b.status || 'requested';
           let statoBadge = `<span class="badge badge-${statusLabel}">${statusLabel}</span>`;
@@ -412,7 +413,7 @@
           let azioniStripe = '';
           if (currentUser.role === 'family' && (b.status === 'confirmed' || b.status === 'accepted')) {
             azioniStripe = `
-              <button class="btn-stripe" onclick="pagaStripe('${b.id}', '${b.sitter?.full_name || 'Babysitter'}', 10)">Paga Caparra (€10)</button>
+              <button class="btn-stripe" onclick="pagaStripe('${b.id}', '${b.sitter?.full_name || 'Babysitter'}', ${rate})">Paga Ora (€${rate})</button>
             `;
           }
 
@@ -424,6 +425,7 @@
               </div>
               <div style="margin-top: 5px; font-size: 14px;">
                 Data: ${b.booking_date || 'N/D'} | Orario: ${b.slots?.time_slot || 'N/D'}<br>
+                Tariffa: €${rate}/ora<br>
                 Telefono: ${telefono || 'N/D'} ${b.notes ? `<br><em>Note: ${b.notes}</em>` : ''}
               </div>
               ${azioniSitter}

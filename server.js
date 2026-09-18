@@ -55,7 +55,6 @@ app.post(
     let event;
 
     try {
-      // req.body è il Buffer grezzo non alterato da express.json()
       event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
     } catch (err) {
       console.error(`Errore firma Webhook: ${err.message}`);
@@ -73,10 +72,10 @@ app.post(
       }
 
       try {
-        // 1. Aggiorna lo stato della prenotazione a "confirmed"
+        // 1. Aggiorna lo stato della prenotazione a "paid" (Pagato)
         const { data: booking, error: bookingErr } = await supabase
           .from('bookings')
-          .update({ status: 'confirmed' })
+          .update({ status: 'paid' })
           .eq('id', bookingId)
           .select(`
             *,
@@ -100,18 +99,18 @@ app.post(
           if (booking.family?.phone) {
             await sendTwilioNotification(
               booking.family.phone,
-              `BabyApp: Pagamento della caparra confermato! La tua prenotazione con ${booking.sitter?.full_name || 'la babysitter'} per il ${booking.booking_date} è ufficialmente confermata.`
+              `BabyApp: Pagamento della caparra confermato! La tua prenotazione con ${booking.sitter?.full_name || 'la babysitter'} per il ${booking.booking_date} è saldata e confermata.`
             );
           }
           if (booking.sitter?.phone) {
             await sendTwilioNotification(
               booking.sitter.phone,
-              `BabyApp: La famiglia ${booking.family?.full_name || ''} ha versato la caparra. Il servizio per il ${booking.booking_date} è confermato!`
+              `BabyApp: La famiglia ${booking.family?.full_name || ''} ha versato il pagamento. Il servizio per il ${booking.booking_date} è confermato e saldato!`
             );
           }
         }
 
-        console.log(`Prenotazione ${bookingId} confermata e pagata con successo via Stripe!`);
+        console.log(`Prenotazione ${bookingId} pagata con successo via Stripe!`);
       } catch (err) {
         console.error(`Errore durante aggiornamento DB da Webhook: ${err.message}`);
       }
@@ -466,7 +465,7 @@ app.post('/api/payments/create-checkout-session', async (req, res) => {
           price_data: {
             currency: 'eur',
             product_data: {
-              name: `Caparra prenotazione Babysitter: ${sitter_name}`,
+              name: `Prenotazione Babysitter: ${sitter_name}`,
             },
             unit_amount: Math.round(amount_eur * 100),
           },
